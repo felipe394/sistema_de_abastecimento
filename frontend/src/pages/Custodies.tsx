@@ -3,20 +3,28 @@ import { useState, useEffect } from 'react';
 
 type Custody = { id: string, name: string, region: string, cities: string, description: string, status: string };
 
-const defaultCustodies: Custody[] = [
-  { id: '1', name: 'GRUPO FERIADO SÃO PAULO', region: 'Sudeste', cities: 'São Paulo, Campinas, Santos', description: 'Agrupamento principal capital', status: 'Ativo' },
-  { id: '2', name: 'CUSTÓDIA NORDESTE LITORAL', region: 'Nordeste', cities: 'Recife, Fortaleza, João Pessoa, Maceió', description: 'Agrupamento turistico', status: 'Ativo' }
-];
 
 export const Custodies = () => {
-  const [custodies, setCustodies] = useState<Custody[]>(() => {
-    const saved = localStorage.getItem('mock_custodies');
-    return saved ? JSON.parse(saved) : defaultCustodies;
-  });
+  const [custodies, setCustodies] = useState<Custody[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCustodies = async () => {
+    try {
+      const response = await fetch('/api/custodies', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await response.json();
+      setCustodies(data);
+    } catch (err) {
+      console.error('Erro ao buscar custódias:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('mock_custodies', JSON.stringify(custodies));
-  }, [custodies]);
+    fetchCustodies();
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,19 +42,41 @@ export const Custodies = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name) return;
-    if (editingId) {
-      setCustodies(prev => prev.map(c => c.id === editingId ? { ...c, ...formData } : c));
-    } else {
-      setCustodies(prev => [...prev, { id: Date.now().toString(), ...formData }]);
+    const method = editingId ? 'PUT' : 'POST';
+    const url = editingId ? `/api/custodies/${editingId}` : '/api/custodies';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (!res.ok) throw new Error('Falha ao salvar custódia');
+      
+      setIsModalOpen(false);
+      fetchCustodies();
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao salvar custódia');
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta custódia?')) {
-      setCustodies(prev => prev.filter(c => c.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta custódia?')) return;
+    try {
+      await fetch(`/api/custodies/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      fetchCustodies();
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -129,7 +159,19 @@ export const Custodies = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {custodies.map((custody) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    Carregando custódias...
+                  </td>
+                </tr>
+              ) : custodies.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    Nenhuma custódia cadastrada.
+                  </td>
+                </tr>
+              ) : custodies.map((custody) => (
                 <tr key={custody.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm font-bold text-slate-800">{custody.name}</td>
                   <td className="px-6 py-4 text-sm font-medium text-slate-600">{custody.region}</td>

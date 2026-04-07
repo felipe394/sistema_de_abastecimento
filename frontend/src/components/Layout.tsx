@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Menu, X, LayoutDashboard, Calculator, FileUp, Users, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import logoImage from '../assets/logo.png';
+import logoConnector from '../assets/logo_connector.png';
+import { Footer } from './Footer';
 
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
@@ -19,7 +21,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const isAdmin = true; 
 
   const handleLogout = () => {
-    // Aqui no futuro você limpa o token (ex: localStorage.removeItem('token'))
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     navigate('/login');
   };
 
@@ -31,18 +34,12 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } w-64 bg-white border-r border-slate-200 shadow-xl flex flex-col`}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo area */}
-          <div className="h-20 flex items-center justify-center px-6 border-b border-slate-100">
-            <div className="flex items-center space-x-4">
-              <img src={logoImage} alt="Logo" className="h-12 w-auto object-contain" />
-              <span className="text-xl font-medium text-primary-900 tracking-widest uppercase font-serif">
-                ATMs supply
-              </span>
-            </div>
+        <div className="flex flex-col h-full pt-4">
+          <div className="h-20 flex items-center justify-center px-6 border-b border-slate-100 mb-4">
+            <img src={logoConnector} alt="Connector Tech" className="h-12 w-auto object-contain" />
           </div>
 
-          <nav className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
+          <nav className="flex-1 overflow-y-auto px-4 space-y-2">
             {sidebarItems.filter(i => !i.adminOnly || isAdmin).map((item) => (
               <NavLink
                 key={item.path}
@@ -62,7 +59,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             ))}
           </nav>
 
-          <div className="p-4 border-t border-slate-100">
+          <div className="p-4 border-t border-slate-100 mt-auto">
             <button 
               onClick={handleLogout}
               className="flex items-center w-full px-4 py-3 text-sm font-bold text-slate-600 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors"
@@ -82,15 +79,24 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
       >
         {/* Topbar */}
         <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-30 flex items-center px-6 shadow-sm">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 rounded-lg text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-colors"
-          >
-            {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 rounded-lg text-slate-500 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+            >
+              {isSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            
+            <div className="flex items-center space-x-2">
+              <img src={logoImage} alt="Logo" className="h-8 w-auto object-contain" />
+              <span className="text-lg font-black text-primary-900 tracking-tighter uppercase hidden sm:block">
+                ATMs supply
+              </span>
+            </div>
+          </div>
           
           <div className="flex-1 flex justify-center">
-            <h1 className="text-xl font-bold text-primary-600 uppercase tracking-wide">
+            <h1 className="text-base font-bold text-slate-400 uppercase tracking-widest hidden lg:block">
               Sistema de Abastecimento
             </h1>
           </div>
@@ -107,9 +113,13 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </header>
 
         {/* Page Content */}
-        <div className="p-6 md:p-8 flex-1">
-          {children}
+        <div className="p-6 md:p-8 flex-1 flex flex-col">
+          <div className="flex-1">
+            {children}
+          </div>
         </div>
+        
+        <Footer />
       </main>
     </div>
   );
