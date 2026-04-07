@@ -1,5 +1,5 @@
 exports.up = function(knex) {
-  return knex.schema.createTable('custodies', table => {
+  return knex.schema.createTable('tb_custodias', table => {
     table.increments('id').primary();
     table.string('name').notNullable().unique();
     table.timestamps(true, true);
@@ -7,5 +7,5 @@ exports.up = function(knex) {
 };
 
 exports.down = function(knex) {
-  return knex.schema.dropTable('custodies');
+  return knex.schema.dropTable('tb_custodias');
 };

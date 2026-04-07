@@ -12,7 +12,7 @@ router.use(authMiddleware);
 // POST /api/import
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+    return res.status(400).json({ error: 'Nenhum arquivo enviado' });
   }
 
   try {
@@ -28,16 +28,16 @@ router.post('/', upload.single('file'), async (req, res) => {
         if (!row.Custody || !row.ATM || !row.Date || !row.Type || !row.Amount) continue;
 
         // Ensure Custody exists
-        let custody = await trx('custodies').where({ name: row.Custody }).first();
+        let custody = await trx('tb_custodias').where({ name: row.Custody }).first();
         if (!custody) {
-          const [id] = await trx('custodies').insert({ name: row.Custody });
+          const [id] = await trx('tb_custodias').insert({ name: row.Custody });
           custody = { id, name: row.Custody };
         }
 
         // Ensure ATM exists
-        let atm = await trx('atms').where({ number: row.ATM.toString() }).first();
+        let atm = await trx('tb_atms').where({ number: row.ATM.toString() }).first();
         if (!atm) {
-          const [id] = await trx('atms').insert({
+          const [id] = await trx('tb_atms').insert({
             number: row.ATM.toString(),
             custody_id: custody.id
           });
@@ -52,7 +52,7 @@ router.post('/', upload.single('file'), async (req, res) => {
         }
 
         // Insert Transaction
-        await trx('transactions').insert({
+        await trx('tb_transacoes').insert({
           atm_id: atm.id,
           date: parsedDate,
           type: row.Type.toLowerCase() === 'deposit' ? 'deposit' : 'withdrawal',
@@ -61,10 +61,10 @@ router.post('/', upload.single('file'), async (req, res) => {
       }
     });
 
-    res.json({ message: 'Import successful', recordsProcessed: data.length });
+    res.json({ message: 'Importação realizada com sucesso', recordsProcessed: data.length });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error processing file' });
+    res.status(500).json({ error: 'Erro ao processar o arquivo' });
   }
 });
 

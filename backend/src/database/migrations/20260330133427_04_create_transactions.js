@@ -1,7 +1,7 @@
 exports.up = function(knex) {
-  return knex.schema.createTable('transactions', table => {
+  return knex.schema.createTable('tb_transacoes', table => {
     table.increments('id').primary();
-    table.integer('atm_id').unsigned().references('id').inTable('atms').onDelete('CASCADE');
+    table.integer('atm_id').unsigned().references('id').inTable('tb_atms').onDelete('CASCADE');
     table.date('date').notNullable();
     table.enum('type', ['deposit', 'withdrawal']).notNullable();
     table.decimal('amount', 14, 2).notNullable();
@@ -10,5 +10,5 @@ exports.up = function(knex) {
 };
 
 exports.down = function(knex) {
-  return knex.schema.dropTable('transactions');
+  return knex.schema.dropTable('tb_transacoes');
 };

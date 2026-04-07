@@ -13,14 +13,14 @@ module.exports = {
     const { email, password } = req.body;
 
     try {
-      const user = await db('users').where({ email }).first();
+      const user = await db('tb_usuarios').where({ email }).first();
 
       if (!user) {
-        return res.status(400).json({ error: 'User not found' });
+        return res.status(400).json({ error: 'Usuário não encontrado' });
       }
 
       if (!(await bcrypt.compare(password, user.password))) {
-        return res.status(400).json({ error: 'Invalid password' });
+        return res.status(400).json({ error: 'Senha inválida' });
       }
 
       user.password = undefined;
@@ -30,7 +30,7 @@ module.exports = {
         token: generateToken({ id: user.id, role: user.role }),
       });
     } catch (err) {
-      return res.status(500).json({ error: 'Authentication failed' });
+      return res.status(500).json({ error: 'Falha na autenticação' });
     }
   }
 };
