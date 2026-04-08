@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Activity, Landmark, FileText, TrendingUp, DownloadCloud } from 'lucide-react';
 
 export const Dashboard = () => {

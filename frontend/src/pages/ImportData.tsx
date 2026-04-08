@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { UploadCloud } from 'lucide-react';
 
 export const ImportData = () => {
