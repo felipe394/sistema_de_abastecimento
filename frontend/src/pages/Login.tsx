@@ -1,17 +1,17 @@
 import { useState } from 'react';
-import { Lock, Mail, Check, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Lock, Mail, Check, Eye, EyeOff, Loader2, Banknote } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import loginImage from '../assets/login.png';
-import logoPrimary from '../assets/logo.png';
+import loginImage from '../assets/loginatms.png';
 import logoConnector from '../assets/logo_connector.png';
 
 export const Login = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('admin@system.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +43,7 @@ export const Login = () => {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -129,15 +129,24 @@ export const Login = () => {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <label className="flex items-center space-x-2 cursor-pointer group">
-                <div className="w-5 h-5 border-2 border-slate-300 rounded flex items-center justify-center group-hover:border-primary-500 transition-colors bg-white">
-                  <Check className="w-3.5 h-3.5 text-primary-600 opacity-0" /> 
+              <label 
+                className="flex items-center space-x-2 cursor-pointer group"
+                onClick={() => setRememberMe(!rememberMe)}
+              >
+                <div className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                  rememberMe ? 'bg-primary-600 border-primary-600' : 'bg-white border-slate-300'
+                }`}>
+                  <Check className={`w-3.5 h-3.5 text-white transition-opacity ${rememberMe ? 'opacity-100' : 'opacity-0'}`} /> 
                 </div>
                 <span className="text-sm font-semibold text-slate-600 group-hover:text-slate-800 transition-colors">Lembrar-me</span>
               </label>
-              <a href="#" className="text-sm font-bold text-primary-600 hover:text-primary-700 hover:underline">
+              <button 
+                type="button"
+                onClick={() => alert('Recuperação de senha em desenvolvimento.')}
+                className="text-sm font-bold text-primary-600 hover:text-primary-700 hover:underline"
+              >
                 Esqueceu a Senha?
-              </a>
+              </button>
             </div>
 
             <button 
@@ -156,13 +165,21 @@ export const Login = () => {
 
           <div className="mt-8 text-center">
             <p className="text-sm font-medium text-slate-500 mb-6">
-              Não Tem Uma Conta? <a href="#" className="text-primary-600 font-bold hover:underline">Inscrever-se</a>
+              Não Tem Uma Conta? <button 
+                type="button"
+                onClick={() => alert('Cadastro de novos usuários em desenvolvimento.')}
+                className="text-primary-600 font-bold hover:underline"
+              >
+                Inscrever-se
+              </button>
             </p>
-            <div className="pt-6 border-t border-slate-100 flex flex-col items-center">
+            <div className="pt-6 border-t border-slate-100 flex flex-col items-center justify-center text-center">
                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Desenvolvido para</p>
-               <div className="flex items-center space-x-2 opacity-50 grayscale hover:grayscale-0 hover:opacity-100 transition-all cursor-default">
-                 <img src={logoPrimary} alt="Logo" className="h-6 w-auto object-contain" />
-                 <span className="text-xs font-black text-primary-900 uppercase">ATMs supply</span>
+               <div className="flex items-center justify-center space-x-2 opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all cursor-default bg-slate-50 px-4 py-2 rounded-lg border border-slate-100">
+                 <div className="bg-primary-600 p-1 rounded shadow-sm">
+                    <Banknote className="h-4 w-4 text-white" />
+                 </div>
+                 <span className="text-sm font-black text-primary-900 uppercase tracking-tight">ATMs supply</span>
                </div>
             </div>
           </div>

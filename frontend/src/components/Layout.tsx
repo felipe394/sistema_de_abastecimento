@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Menu, X, LayoutDashboard, Calculator, FileUp, Users, Settings, LogOut, ChevronRight } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Calculator, FileUp, Users, Settings, LogOut, ChevronRight, Banknote } from 'lucide-react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import logoImage from '../assets/logo.png';
 import logoConnector from '../assets/logo_connector.png';
 import { Footer } from './Footer';
 
 const sidebarItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Calculator, label: 'Análise de ATMs', path: '/analysis' },
   { icon: FileUp, label: 'Importação', path: '/import' },
   { icon: Users, label: 'Usuários', path: '/users', adminOnly: true },
@@ -88,7 +87,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
             </button>
             
             <div className="flex items-center space-x-2">
-              <img src={logoImage} alt="Logo" className="h-8 w-auto object-contain" />
+              <div className="bg-primary-600 p-1.5 rounded-lg shadow-sm">
+                <Banknote className="h-6 w-6 text-white" />
+              </div>
               <span className="text-lg font-black text-primary-900 tracking-tighter uppercase hidden sm:block">
                 ATMs supply
               </span>
