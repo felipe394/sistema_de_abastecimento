@@ -1,0 +1,13 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # PROXY MESTRE: Intercepta /api/ e joga para PORTA 14392 (onde estará nosso PM2 com as rotas novas)
+  RewriteRule ^api/(.*)$ http://127.0.0.1:14392/api/$1 [P,L]
+
+  # React Router: SPA normal
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteRule ^ index.html [QSA,L]
+</IfModule>

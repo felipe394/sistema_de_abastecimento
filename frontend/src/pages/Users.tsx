@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, X, Eye, EyeOff, Loader2, User as UserIcon, Shield, Mail } from 'lucide-react';
+import { API_URL } from '../config';
 
 interface User {
   id: number;
@@ -25,7 +26,7 @@ export const Users = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/api/users', {
+      const response = await fetch(`${API_URL}/api/users`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
@@ -56,7 +57,7 @@ export const Users = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const method = editingUser ? 'PUT' : 'POST';
-    const url = editingUser ? `/api/users/${editingUser.id}` : '/api/users';
+    const url = editingUser ? `${API_URL}/api/users/${editingUser.id}` : `${API_URL}/api/users`;
 
     try {
       const res = await fetch(url, {
@@ -80,7 +81,7 @@ export const Users = () => {
   const handleDelete = async (id: number) => {
     if (!confirm('Deseja realmente excluir este usuário?')) return;
     try {
-      await fetch(`/api/users/${id}`, {
+      await fetch(`${API_URL}/api/users/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });

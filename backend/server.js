@@ -15,16 +15,25 @@ app.use((req, res, next) => {
 });
 
 // basic healthcheck
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
 });
 
-// require routes
+// require routes (Duplicated for cPanel Passenger compatibility)
 app.use('/api/auth', require('./src/routes/auth'));
+app.use('/auth', require('./src/routes/auth'));
+
 app.use('/api/users', require('./src/routes/users'));
+app.use('/users', require('./src/routes/users'));
+
 app.use('/api/custodies', require('./src/routes/custodies'));
+app.use('/custodies', require('./src/routes/custodies'));
+
 app.use('/api/import', require('./src/routes/import'));
+app.use('/import', require('./src/routes/import'));
+
 app.use('/api/analyses', require('./src/routes/analyses'));
+app.use('/analyses', require('./src/routes/analyses'));
 
 const PORT = process.env.PORT || 3000;
 

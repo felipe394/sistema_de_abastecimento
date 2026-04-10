@@ -1,6 +1,7 @@
 import { ArrowLeft, Landmark, TrendingUp, TrendingDown, DownloadCloud, Loader2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { API_URL } from '../../config';
 
 export const AnalysisDetail = () => {
   const navigate = useNavigate();
@@ -18,7 +19,7 @@ export const AnalysisDetail = () => {
       setLoading(true);
       setError('');
       try {
-        const resp = await fetch(`/api/analyses/detail?custodyId=${custodyId}&referenceDate=${date}`, {
+        const resp = await fetch(`${API_URL}/api/analyses/detail?custodyId=${custodyId}&referenceDate=${date}`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         });
         

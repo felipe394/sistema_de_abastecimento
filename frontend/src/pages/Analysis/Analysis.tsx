@@ -1,5 +1,6 @@
 import { Plus, Calculator, Database, TrendingUp, Calendar, ArrowRight, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { API_URL } from '../../config';
 
 const parseCurrency = (val: string | number) => {
   if (typeof val === 'number') return val;
@@ -48,7 +49,7 @@ export const Analysis = () => {
     const fetchCustodies = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('/api/custodies', {
+        const res = await fetch(`${API_URL}/api/custodies`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -73,7 +74,7 @@ export const Analysis = () => {
       if (!selectedCustodyId || !referenceDate) return;
       setFetchingAnalysis(true);
       try {
-        const res = await fetch(`/api/analyses?custodyId=${selectedCustodyId}&referenceDate=${referenceDate}`, {
+        const res = await fetch(`${API_URL}/api/analyses?custodyId=${selectedCustodyId}&referenceDate=${referenceDate}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -160,7 +161,7 @@ export const Analysis = () => {
     if (!selectedCustodyId || !date) return;
     setLoadingTotals(true);
     try {
-      const resp = await fetch(`/api/custodies/${selectedCustodyId}/daily-totals?date=${date}`, {
+      const resp = await fetch(`${API_URL}/api/custodies/${selectedCustodyId}/daily-totals?date=${date}`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await resp.json();
@@ -213,7 +214,7 @@ export const Analysis = () => {
         actionFinalMicro
       };
 
-      const res = await fetch('/api/analyses', {
+      const res = await fetch(`${API_URL}/api/analyses`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -3,6 +3,7 @@ import { Lock, Mail, Check, Eye, EyeOff, Loader2, Banknote } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import loginImage from '../assets/loginatms.png';
 import logoConnector from '../assets/logo_connector.png';
+import { API_URL } from '../config';
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -19,13 +20,19 @@ export const Login = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/authenticate', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos
+
+      const response = await fetch(`${API_URL}/api/auth/authenticate`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         let errorMsg = 'Falha na autenticação';
@@ -45,7 +52,11 @@ export const Login = () => {
       
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.message);
+      if (err.name === 'AbortError') {
+        setError('Tempo de conexão esgotado. O servidor está demorando muito para responder.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

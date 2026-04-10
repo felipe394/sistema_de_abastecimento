@@ -1,5 +1,6 @@
 import { Plus, Edit2, Trash2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { API_URL } from '../config';
 
 type Custody = { id: string, name: string, region: string, cities: string, description: string, status: string };
 
@@ -10,7 +11,7 @@ export const Custodies = () => {
 
   const fetchCustodies = async () => {
     try {
-      const response = await fetch('/api/custodies', {
+      const response = await fetch(`${API_URL}/api/custodies`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
       const data = await response.json();
@@ -45,7 +46,7 @@ export const Custodies = () => {
   const handleSave = async () => {
     if (!formData.name) return;
     const method = editingId ? 'PUT' : 'POST';
-    const url = editingId ? `/api/custodies/${editingId}` : '/api/custodies';
+    const url = editingId ? `${API_URL}/api/custodies/${editingId}` : `${API_URL}/api/custodies`;
 
     try {
       const res = await fetch(url, {
@@ -70,7 +71,7 @@ export const Custodies = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta custódia?')) return;
     try {
-      await fetch(`/api/custodies/${id}`, {
+      await fetch(`${API_URL}/api/custodies/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
