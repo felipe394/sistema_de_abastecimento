@@ -20,10 +20,18 @@ const getDayOfWeek = (dateString: string) => {
   return dias[data.getDay()] || 'A preencher';
 };
 
+const getLocalDateString = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const Analysis = () => {
   const [selectedRowIndex, setSelectedRowIndex] = useState(0);
   const [selectedCustodyId, setSelectedCustodyId] = useState('');
-  const [referenceDate, setReferenceDate] = useState('2026-03-30');
+  const [referenceDate, setReferenceDate] = useState(getLocalDateString());
   const [custodies, setCustodies] = useState<{id:string, name:string}[]>([]);
   
   const [rows, setRows] = useState([...Array(5)].map((_, i) => ({
@@ -198,6 +206,42 @@ export const Analysis = () => {
     });
   }, [selectedCustodyId]);
 
+  const persistConfig = async (configData: any) => {
+    if (!selectedCustodyId) return;
+    try {
+      await fetch('/api/analyses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          custodyId: selectedCustodyId,
+          referenceDate,
+          config: configData
+        })
+      });
+    } catch (err) {
+      console.error('Silently failed to save:', err);
+    }
+  };
+
+  // Auto-save effect
+  useEffect(() => {
+    if (fetchingAnalysis || !selectedCustodyId || loadingTotals) return;
+
+    const handler = setTimeout(() => {
+      persistConfig({
+        lines: rows,
+        dateRows: dateRowsByRowId,
+        actionFinalMacro,
+        actionFinalMicro
+      });
+    }, 1500);
+
+    return () => clearTimeout(handler);
+  }, [rows, dateRowsByRowId, actionFinalMacro, actionFinalMicro, selectedCustodyId, referenceDate, loadingTotals, fetchingAnalysis]);
+
   const [saving, setSaving] = useState(false);
 
   const handleSaveAnalysis = async () => {
@@ -228,10 +272,10 @@ export const Analysis = () => {
       });
 
       if (!res.ok) throw new Error('Erro ao salvar análise');
-      alert('Análise salva com sucesso!');
+      // No alert needed if we auto-save, but keeping the visual trigger for manual confirmation
+      setTimeout(() => setSaving(false), 500);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Erro ao salvar');
-    } finally {
       setSaving(false);
     }
   };
@@ -304,7 +348,7 @@ export const Analysis = () => {
                {saving ? 'SALVANDO...' : 'CALCULAR PREDIÇÃO'}
              </button>
              <button 
-               onClick={() => window.location.href = '/analysis/detail'}
+               onClick={() => window.location.href = `/analysis/detail?custody=${selectedCustodyId}&date=${referenceDate}`}
                className="px-4 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-lg transition-all flex items-center justify-center shadow-sm"
              >
                 DETALHAR <ArrowRight className="ml-2 w-4 h-4" />

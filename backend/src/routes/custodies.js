@@ -99,4 +99,46 @@ router.get('/:id/daily-totals', async (req, res) => {
   }
 });
 
+// GET /api/custodies/:id/atm-daily-totals?date=YYYY-MM-DD
+// Returns per-ATM withdrawal and deposit totals for a specific date
+router.get('/:id/atm-daily-totals', async (req, res) => {
+  const { id } = req.params;
+  const { date } = req.query;
+
+  if (!date) return res.status(400).json({ error: 'A data é obrigatória' });
+
+  try {
+    const atms = await db('tb_atms').where({ custody_id: id });
+
+    const results = [];
+    for (const atm of atms) {
+      const totals = await db('tb_transacoes')
+        .where({ atm_id: atm.id, date })
+        .select('type')
+        .sum('amount as total')
+        .groupBy('type');
+
+      let withdrawal = 0;
+      let deposit = 0;
+      totals.forEach(t => {
+        if (t.type === 'withdrawal') withdrawal = parseFloat(t.total);
+        if (t.type === 'deposit') deposit = parseFloat(t.total);
+      });
+
+      results.push({
+        id: atm.id,
+        number: atm.number,
+        name: `ATM ${atm.number}`,
+        withdrawal,
+        deposit
+      });
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erro ao buscar totais por ATM' });
+  }
+});
+
 module.exports = router;

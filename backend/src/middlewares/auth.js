@@ -1,22 +1,23 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  let authHeader = req.headers.authorization;
+  let token;
 
-  if (!authHeader) {
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2) return res.status(401).json({ error: 'Erro no token' });
+    
+    const [scheme, parsedToken] = parts;
+    if (!/^Bearer$/i.test(scheme)) return res.status(401).json({ error: 'Token malformatado' });
+    
+    token = parsedToken;
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'Nenhum token fornecido' });
-  }
-
-  const parts = authHeader.split(' ');
-
-  if (parts.length !== 2) {
-    return res.status(401).json({ error: 'Erro no token' });
-  }
-
-  const [scheme, token] = parts;
-
-  if (!/^Bearer$/i.test(scheme)) {
-    return res.status(401).json({ error: 'Token malformatado' });
   }
 
   jwt.verify(token, process.env.JWT_SECRET || 'secret123', (err, decoded) => {

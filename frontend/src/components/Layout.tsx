@@ -7,7 +7,7 @@ import { Footer } from './Footer';
 const sidebarItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Calculator, label: 'Análise de ATMs', path: '/analysis' },
-  { icon: FileUp, label: 'Importação', path: '/import' },
+  { icon: FileUp, label: 'Importação', path: '/import', adminOnly: true },
   { icon: Users, label: 'Usuários', path: '/users', adminOnly: true },
   { icon: Settings, label: 'Custódias', path: '/custodies', adminOnly: true },
 ];
@@ -16,8 +16,9 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const navigate = useNavigate();
 
-  // Hardcoded for UI visualization, later from auth context
-  const isAdmin = true; 
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.role === 'admin';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -104,11 +105,11 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
           
           <div className="flex items-center space-x-4">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-primary-900">Admin User</p>
-              <p className="text-xs text-slate-500">admin@system.com</p>
+              <p className="text-sm font-bold text-primary-900">{user?.name || 'Usuário'}</p>
+              <p className="text-xs text-slate-500">{user?.email || 'email@sistema.com'}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold shadow-sm border border-primary-200">
-              A
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
           </div>
         </header>

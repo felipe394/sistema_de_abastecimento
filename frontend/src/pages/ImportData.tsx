@@ -1,7 +1,71 @@
-
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
 
 export const ImportData = () => {
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setProgress(0);
+    setError('');
+    setSuccess('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/import', true);
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`);
+    
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        // We cap upload progress slightly below 100 so it dwells at 99% while the backend processes DB inserts
+        const percentComplete = Math.min(Math.round((event.loaded / event.total) * 100), 99);
+        setProgress(percentComplete);
+      }
+    };
+
+    xhr.onload = () => {
+      setLoading(false);
+      setProgress(100);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+           const result = JSON.parse(xhr.responseText);
+           setSuccess(result.message || `Upload concluído com sucesso! ${result.recordsProcessed || 0} registros processados.`);
+        } catch {
+           setSuccess(`Upload concluído com sucesso!`);
+        }
+      } else {
+        try {
+          const errorData = JSON.parse(xhr.responseText);
+          setError(errorData.error || 'Erro ao realizar upload do arquivo.');
+        } catch {
+          setError('Erro na conexão com o servidor.');
+        }
+      }
+    };
+
+    xhr.onerror = () => {
+      setLoading(false);
+      setError('Falha na conexão com o servidor.');
+    };
+
+    xhr.send(formData);
+  };
+
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
       <div>
@@ -10,16 +74,59 @@ export const ImportData = () => {
       </div>
 
       <div className="bg-white p-10 flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-primary-300 rounded-2xl shadow-sm hover:border-primary-500 transition-colors bg-primary-50/30">
-        <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center mb-6 shadow-inner border border-primary-200">
-          <UploadCloud className="w-12 h-12 text-primary-600" />
-        </div>
-        <h3 className="text-xl font-bold text-slate-800 mb-2">Arraste e solte o arquivo Excel</h3>
-        <p className="text-slate-500 mb-8 text-center max-w-sm font-medium">
-          Formatos suportados: .xlsx, .xls, .csv. As custódias e ATMs novas serão cadastradas automaticamente.
-        </p>
-        <button className="px-8 py-3.5 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 transition-all shadow-lg hover:shadow-xl flex items-center">
-          Selecionar Arquivo
-        </button>
+        {loading ? (
+          <div className="flex flex-col items-center w-full max-w-md">
+            <Loader2 className="w-16 h-16 text-primary-600 animate-spin mb-6" />
+            <p className="text-primary-700 font-bold uppercase tracking-widest text-sm mb-4">Processando arquivo... {progress}%</p>
+            <div className="w-full bg-slate-200 rounded-full h-3">
+              <div 
+                className="bg-primary-600 h-3 rounded-full transition-all duration-300 ease-out flex items-center justify-center overflow-hidden" 
+                style={{ width: `${progress}%` }}
+              >
+                <div className="w-full h-full bg-white/20 animate-pulse"></div>
+              </div>
+            </div>
+            <p className="text-slate-400 text-xs mt-3 font-medium text-center">Transferindo para o banco de dados, por favor aguarde.</p>
+          </div>
+        ) : (
+          <>
+            <div className="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center mb-6 shadow-inner border border-primary-200">
+              <UploadCloud className="w-12 h-12 text-primary-600" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">Arraste e solte o arquivo ou clique no botão</h3>
+            <p className="text-slate-500 mb-8 text-center max-w-sm font-medium">
+              Formatos suportados: .xlsx, .xls, .csv, .txt. As custódias e ATMs novas serão cadastradas automaticamente.
+            </p>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept=".xlsx,.xls,.csv,.txt"
+              onChange={handleFileChange}
+            />
+            <button 
+              onClick={handleUploadClick}
+              className="px-8 py-3.5 bg-primary-600 text-white rounded-xl font-bold hover:bg-primary-700 active:bg-primary-800 transition-all shadow-lg hover:shadow-xl flex items-center"
+            >
+              <UploadCloud className="w-5 h-5 mr-3" />
+              Selecionar Arquivo
+            </button>
+            
+            {success && (
+              <div className="mt-8 bg-emerald-50 text-emerald-700 px-6 py-4 rounded-xl font-bold flex items-center border border-emerald-100 whitespace-pre-line text-left">
+                <CheckCircle className="w-6 h-6 mr-3 text-emerald-600 flex-shrink-0" />
+                {success}
+              </div>
+            )}
+            
+            {error && (
+              <div className="mt-8 bg-rose-50 text-rose-700 px-6 py-4 rounded-xl font-bold flex items-center border border-rose-100">
+                <AlertCircle className="w-6 h-6 mr-3 text-rose-600" />
+                {error}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
