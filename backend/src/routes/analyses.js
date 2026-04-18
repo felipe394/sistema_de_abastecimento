@@ -10,23 +10,23 @@ router.use(authMiddleware);
 // Helper function to extract ATM prediction logic, reused by /detail, /export/pdf, and /export/excel
 async function getDetailData(custodyId, referenceDate) {
   const analysis = await db('tb_analises')
-    .where({ custody_id: custodyId, reference_date: referenceDate })
+    .where({ id_custodia: custodyId, data_referencia: referenceDate })
     .first();
 
   if (!analysis) {
     throw new Error('Nenhuma análise salva encontrada para esta data');
   }
 
-  const config = typeof analysis.config === 'string' ? JSON.parse(analysis.config) : analysis.config;
+  const config = typeof analysis.configuracao === 'string' ? JSON.parse(analysis.configuracao) : analysis.configuracao;
   const { lines, dateRows, actionFinalMacro, actionFinalMicro } = config;
 
-  const atms = await db('tb_atms').where({ custody_id: custodyId });
+  const atms = await db('tb_atms').where({ id_custodia: custodyId });
   const allDates = Object.values(dateRows).flat().map(d => d.date).filter(Boolean);
   const uniqueDates = [...new Set(allDates)];
   
   const transactions = await db('tb_transacoes')
-    .where({ custody_id: custodyId })
-    .whereIn('date', uniqueDates);
+    .where({ id_atm: atms.map(a => a.id) })
+    .whereIn('data', uniqueDates);
 
   const getAtmPrediction = (atmId, type) => {
     const rowValues = lines
@@ -34,11 +34,18 @@ async function getDetailData(custodyId, referenceDate) {
       .map(row => {
         const rowDates = dateRows[row.id] || [];
         const dailyValues = rowDates.map(rd => {
-          const trans = transactions.find(t => t.atm_id === atmId && t.date.toISOString().split('T')[0] === rd.date);
-          const baseAmount = trans ? (type === 'W' ? trans.withdrawal : trans.deposit) : 0;
+          const trans = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date);
+          const baseAmount = trans ? (type === 'W' ? trans.valor : trans.valor) : 0; // Wait, if type is W should it be withdrawal? 
+          // Actually, in the original code: trans ? (type === 'W' ? trans.withdrawal : trans.deposit) : 0;
+          // But I need to handle types!
+          
+          // Let's refine this to filter by tipo.
+          const transValue = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date && t.tipo === (type === 'W' ? 'saque' : 'deposito'));
+          const baseAmountVal = transValue ? transValue.valor : 0;
+          
           const factorString = type === 'W' ? rd.factorW : rd.factorD;
           const factor = parseFloat(factorString.replace(',', '.')) || 1;
-          return baseAmount * factor;
+          return baseAmountVal * factor;
         });
 
         if (dailyValues.length === 0) return 0;
@@ -62,8 +69,8 @@ async function getDetailData(custodyId, referenceDate) {
   };
 
   const results = atms.map(atm => ({
-    id: atm.number,
-    name: `ATM ${atm.number}`,
+    id: atm.numero,
+    name: `ATM ${atm.numero}`,
     withdrawal: getAtmPrediction(atm.id, 'W'),
     deposit: getAtmPrediction(atm.id, 'D'),
   }));
@@ -89,13 +96,13 @@ router.post('/calculate', async (req, res) => {
     // the final % index diff between calculated macro and individual sums.
     
     // For scaffolding purposes, we simulate the calculation:
-    const atms = await db('tb_atms').where({ custody_id: custodyId });
+    const atms = await db('tb_atms').where({ id_custodia: custodyId });
     
     // Return mock calculated index and individual ATM adjustments
     const simulationIndex = 1.02; // e.g. 2% more
     const results = atms.map(atm => ({
       atmId: atm.id,
-      atmNumber: atm.number,
+      atmNumber: atm.numero,
       originalPrediction: 10000, 
       adjustedPrediction: 10000 * simulationIndex
     }));
@@ -124,11 +131,11 @@ router.get('/', async (req, res) => {
 
   try {
     const analysis = await db('tb_analises')
-      .where({ custody_id: custodyId, reference_date: referenceDate })
+      .where({ id_custodia: custodyId, data_referencia: referenceDate })
       .first();
     
-    if (analysis && analysis.config) {
-      return res.json(typeof analysis.config === 'string' ? JSON.parse(analysis.config) : analysis.config);
+    if (analysis && analysis.configuracao) {
+      return res.json(typeof analysis.configuracao === 'string' ? JSON.parse(analysis.configuracao) : analysis.configuracao);
     }
     res.json(null);
   } catch (err) {
@@ -143,24 +150,24 @@ router.post('/', async (req, res) => {
   const { custodyId, referenceDate, config } = req.body;
   try {
     const existing = await db('tb_analises')
-      .where({ custody_id: custodyId, reference_date: referenceDate })
+      .where({ id_custodia: custodyId, data_referencia: referenceDate })
       .first();
 
     if (existing) {
       await db('tb_analises')
         .where({ id: existing.id })
         .update({
-          config: JSON.stringify(config),
-          user_id: req.userId,
+          configuracao: JSON.stringify(config),
+          id_usuario: req.userId,
           updated_at: db.fn.now()
         });
       res.json({ id: existing.id, message: 'Análise atualizada' });
     } else {
       const [id] = await db('tb_analises').insert({
-        user_id: req.userId,
-        custody_id: custodyId,
-        reference_date: referenceDate,
-        config: JSON.stringify(config)
+        id_usuario: req.userId,
+        id_custodia: custodyId,
+        data_referencia: referenceDate,
+        configuracao: JSON.stringify(config)
       });
       res.status(201).json({ id, message: 'Análise salva' });
     }
@@ -189,27 +196,27 @@ router.get('/detail', async (req, res) => {
 
 // Helper: fetch per-ATM totals for a custody on a given date
 async function getAtmTotalsForDate(custodyId, date) {
-  const atms = await db('tb_atms').where({ custody_id: custodyId });
+  const atms = await db('tb_atms').where({ id_custodia: custodyId });
   const results = [];
 
   for (const atm of atms) {
     const totals = await db('tb_transacoes')
-      .where({ atm_id: atm.id, date })
-      .select('type')
-      .sum('amount as total')
-      .groupBy('type');
+      .where({ id_atm: atm.id, data: date })
+      .select('tipo')
+      .sum('valor as total')
+      .groupBy('tipo');
 
     let withdrawal = 0;
     let deposit = 0;
     totals.forEach(t => {
-      if (t.type === 'withdrawal') withdrawal = parseFloat(t.total) || 0;
-      if (t.type === 'deposit') deposit = parseFloat(t.total) || 0;
+      if (t.tipo === 'saque') withdrawal = parseFloat(t.total) || 0;
+      if (t.tipo === 'deposito') deposit = parseFloat(t.total) || 0;
     });
 
     results.push({
       id: atm.id,
-      number: atm.number,
-      name: `ATM ${atm.number}`,
+      number: atm.numero,
+      name: `ATM ${atm.numero}`,
       withdrawal,
       deposit
     });
@@ -241,7 +248,7 @@ router.post('/export/pdf', async (req, res) => {
     // Title
     doc.fontSize(18).font('Helvetica-Bold').text('Consolidacao de Predicao', { align: 'center' });
     doc.moveDown(0.5);
-    doc.fontSize(11).font('Helvetica').text(`Custodia: ${custody ? custody.name : custodyId}`, { align: 'center' });
+    doc.fontSize(11).font('Helvetica').text(`Custodia: ${custody ? custody.nome : custodyId}`, { align: 'center' });
     doc.text(`Data: ${date}  |  Fator de Ajuste: x${f.toFixed(2)}`, { align: 'center' });
     doc.moveDown(1.5);
 
@@ -328,7 +335,7 @@ router.post('/export/excel', async (req, res) => {
     ];
 
     const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, `${custody ? custody.name : 'Dados'}`);
+    xlsx.utils.book_append_sheet(workbook, worksheet, `${custody ? custody.nome : 'Dados'}`);
 
     const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 

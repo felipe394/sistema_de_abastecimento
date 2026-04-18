@@ -9,7 +9,7 @@ router.use(authMiddleware);
 // GET /api/custodies
 router.get('/', async (req, res) => {
   try {
-    const custodies = await db('tb_custodias').select('*');
+    const custodies = await db('tb_custodias').select('id', 'nome as name', 'regiao as region', 'cidades as cities', 'descricao as description', 'status', 'created_at', 'updated_at');
     res.json(custodies);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar custódias' });
@@ -26,7 +26,7 @@ router.post('/', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'O nome é obrigatório' });
 
   try {
-    const [id] = await db('tb_custodias').insert({ name, region, cities, description, status });
+    const [id] = await db('tb_custodias').insert({ nome: name, regiao: region, cidades: cities, descricao: description, status });
     res.status(201).json({ id, name });
   } catch (err) {
     res.status(400).json({ error: 'Erro ao criar custódia (pode já existir)' });
@@ -43,7 +43,7 @@ router.put('/:id', async (req, res) => {
   const { name, region, cities, description, status } = req.body;
 
   try {
-    await db('tb_custodias').where({ id }).update({ name, region, cities, description, status });
+    await db('tb_custodias').where({ id }).update({ nome: name, regiao: region, cidades: cities, descricao: description, status });
     res.json({ message: 'Custódia atualizada com sucesso' });
   } catch (err) {
     res.status(400).json({ error: 'Erro ao atualizar custódia' });
@@ -75,12 +75,12 @@ router.get('/:id/daily-totals', async (req, res) => {
 
   try {
     const totals = await db('tb_transacoes')
-      .join('tb_atms', 'tb_transacoes.atm_id', 'tb_atms.id')
-      .where('tb_atms.custody_id', id)
-      .where('tb_transacoes.date', date)
-      .select('tb_transacoes.type')
-      .sum('amount as total')
-      .groupBy('tb_transacoes.type');
+      .join('tb_atms', 'tb_transacoes.id_atm', 'tb_atms.id')
+      .where('tb_atms.id_custodia', id)
+      .where('tb_transacoes.data', date)
+      .select('tb_transacoes.tipo')
+      .sum('valor as total')
+      .groupBy('tb_transacoes.tipo');
 
     const result = {
       withdrawal: 0,
@@ -88,8 +88,8 @@ router.get('/:id/daily-totals', async (req, res) => {
     };
 
     totals.forEach(t => {
-      if (t.type === 'withdrawal') result.withdrawal = parseFloat(t.total);
-      if (t.type === 'deposit') result.deposit = parseFloat(t.total);
+      if (t.tipo === 'saque') result.withdrawal = parseFloat(t.total);
+      if (t.tipo === 'deposito') result.deposit = parseFloat(t.total);
     });
 
     res.json(result);
@@ -108,27 +108,27 @@ router.get('/:id/atm-daily-totals', async (req, res) => {
   if (!date) return res.status(400).json({ error: 'A data é obrigatória' });
 
   try {
-    const atms = await db('tb_atms').where({ custody_id: id });
+    const atms = await db('tb_atms').where({ id_custodia: id });
 
     const results = [];
     for (const atm of atms) {
       const totals = await db('tb_transacoes')
-        .where({ atm_id: atm.id, date })
-        .select('type')
-        .sum('amount as total')
-        .groupBy('type');
+        .where({ id_atm: atm.id, data: date })
+        .select('tipo')
+        .sum('valor as total')
+        .groupBy('tipo');
 
       let withdrawal = 0;
       let deposit = 0;
       totals.forEach(t => {
-        if (t.type === 'withdrawal') withdrawal = parseFloat(t.total);
-        if (t.type === 'deposit') deposit = parseFloat(t.total);
+        if (t.tipo === 'saque') withdrawal = parseFloat(t.total);
+        if (t.tipo === 'deposito') deposit = parseFloat(t.total);
       });
 
       results.push({
         id: atm.id,
-        number: atm.number,
-        name: `ATM ${atm.number}`,
+        number: atm.numero,
+        name: `ATM ${atm.numero}`,
         withdrawal,
         deposit
       });

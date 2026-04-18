@@ -1,4 +1,4 @@
-import { ArrowLeft, Landmark, TrendingUp, TrendingDown, DownloadCloud, Loader2, Calendar, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Landmark, TrendingUp, TrendingDown, DownloadCloud, Loader2, Calendar } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { API_URL } from '../../config';
@@ -27,14 +27,6 @@ export const AnalysisDetail = () => {
   const [loading, setLoading] = useState(true);
   const [loadingAtms, setLoadingAtms] = useState(false);
   const [error, setError] = useState('');
-  const [adjustmentFactor, setAdjustmentFactor] = useState('1,00');
-
-  const parseFactor = (val: string) => {
-    const num = parseFloat(val.replace(',', '.'));
-    return isNaN(num) ? 1 : num;
-  };
-
-  const factor = parseFactor(adjustmentFactor);
 
   // Fetch analysis config to extract available dates and custody name
   useEffect(() => {
@@ -108,8 +100,6 @@ export const AnalysisDetail = () => {
 
   const totalW = atms.reduce((a, b) => a + b.withdrawal, 0);
   const totalD = atms.reduce((a, b) => a + b.deposit, 0);
-  const adjustedTotalW = totalW * factor;
-  const adjustedTotalD = totalD * factor;
 
   if (loading) {
     return (
@@ -149,74 +139,79 @@ export const AnalysisDetail = () => {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Consolidação da Predição</h1>
-            <p className="text-slate-500 mt-1">{custodyName} • Ref: {new Date(refDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+            <p className="text-slate-500 mt-1">{custodyName}</p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={async () => {
-              try {
-                const resp = await fetch('/api/analyses/export/pdf', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                  },
-                  body: JSON.stringify({ custodyId, date: selectedDate, factor: parseFactor(adjustmentFactor) })
-                });
-                if (!resp.ok) throw new Error('Falha ao gerar PDF');
-                const blob = await resp.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `consolidacao_${custodyId}_${selectedDate}.pdf`;
-                a.click();
-                URL.revokeObjectURL(url);
-              } catch (err) {
-                alert('Erro ao exportar PDF');
-              }
-            }}
-            className="flex items-center px-4 py-2 bg-white border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-lg shadow-sm transition-colors font-bold text-sm"
-          >
-            <DownloadCloud className="w-4 h-4 mr-2" />
-            PDF
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                const resp = await fetch('/api/analyses/export/excel', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                  },
-                  body: JSON.stringify({ custodyId, date: selectedDate, factor: parseFactor(adjustmentFactor) })
-                });
-                if (!resp.ok) throw new Error('Falha ao gerar Excel');
-                const blob = await resp.blob();
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `consolidacao_${custodyId}_${selectedDate}.xlsx`;
-                a.click();
-                URL.revokeObjectURL(url);
-              } catch (err) {
-                alert('Erro ao exportar Excel');
-              }
-            }}
-            className="flex items-center px-4 py-2 bg-white border border-slate-200 text-emerald-600 hover:bg-emerald-50 rounded-lg shadow-sm transition-colors font-bold text-sm"
-          >
-            <DownloadCloud className="w-4 h-4 mr-2" />
-            Excel
-          </button>
+        <div className="flex items-center space-x-6">
+          <div className="text-right">
+            <p className="text-sm font-bold text-slate-600 mb-1">{getDayOfWeek(refDate)}</p>
+            <p className="text-xs text-slate-400 uppercase tracking-tighter">Data de Referência</p>
+          </div>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={async () => {
+                try {
+                  const resp = await fetch('/api/analyses/export/pdf', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ custodyId, date: selectedDate, factor: 1 })
+                  });
+                  if (!resp.ok) throw new Error('Falha ao gerar PDF');
+                  const blob = await resp.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `consolidacao_${custodyId}_${selectedDate}.pdf`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  alert('Erro ao exportar PDF');
+                }
+              }}
+              className="flex items-center px-4 py-2 bg-white border border-slate-200 text-rose-600 hover:bg-rose-50 rounded-lg shadow-sm transition-colors font-bold text-sm"
+            >
+              <DownloadCloud className="w-4 h-4 mr-2" />
+              PDF
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const resp = await fetch('/api/analyses/export/excel', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ custodyId, date: selectedDate, factor: 1 })
+                  });
+                  if (!resp.ok) throw new Error('Falha ao gerar Excel');
+                  const blob = await resp.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `consolidacao_${custodyId}_${selectedDate}.xlsx`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch (err) {
+                  alert('Erro ao exportar Excel');
+                }
+              }}
+              className="flex items-center px-4 py-2 bg-white border border-slate-200 text-emerald-600 hover:bg-emerald-50 rounded-lg shadow-sm transition-colors font-bold text-sm"
+            >
+              <DownloadCloud className="w-4 h-4 mr-2" />
+              Excel
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Controls: Date Selector + Fator de Ajuste */}
+      {/* Controls: Date Selector */}
       <div className="bg-white border border-primary-100 shadow-sm p-6 rounded-xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-1.5 h-full bg-primary-500"></div>
         <div className="flex flex-col md:flex-row items-stretch gap-4">
-          {/* Date Selector */}
           <div className="w-full md:w-72">
             <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
               <Calendar className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
@@ -239,23 +234,8 @@ export const AnalysisDetail = () => {
             )}
           </div>
 
-          {/* Fator de Ajuste */}
-          <div className="w-full md:w-48">
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5">
-              <SlidersHorizontal className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-              Fator de Ajuste
-            </label>
-            <input
-              type="text"
-              value={adjustmentFactor}
-              onChange={(e) => setAdjustmentFactor(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-primary-500 outline-none transition-all"
-              placeholder="1,00"
-            />
-          </div>
-
           {/* Day info */}
-          <div className="bg-slate-900 px-6 py-3 rounded-xl flex flex-col items-center justify-center min-w-[160px]">
+          <div className="bg-slate-900 px-6 py-3 rounded-xl flex flex-col items-center justify-center min-w-[160px] ml-auto">
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Dia Selecionado</p>
             <p className="text-lg font-black text-white leading-tight">{getDayOfWeek(selectedDate)}</p>
             <p className="text-xs text-slate-400 mt-0.5">{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</p>
@@ -270,12 +250,7 @@ export const AnalysisDetail = () => {
             <TrendingUp className="w-16 h-16 text-primary-600" />
           </div>
           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Sacado</p>
-          <h2 className="text-3xl font-black text-primary-900">{formatCurrency(adjustedTotalW)}</h2>
-          {factor !== 1 && (
-            <div className="mt-3 flex items-center text-xs font-bold text-slate-500 bg-slate-100 w-fit px-2 py-1 rounded-md">
-              Original: {formatCurrency(totalW)} • Fator: x{factor.toFixed(2)}
-            </div>
-          )}
+          <h2 className="text-3xl font-black text-primary-900">{formatCurrency(totalW)}</h2>
         </div>
 
         <div className="bg-white border border-emerald-100 shadow-sm rounded-2xl p-6 relative overflow-hidden group">
@@ -283,12 +258,7 @@ export const AnalysisDetail = () => {
             <TrendingDown className="w-16 h-16 text-emerald-600" />
           </div>
           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total Depositado</p>
-          <h2 className="text-3xl font-black text-emerald-800">{formatCurrency(adjustedTotalD)}</h2>
-          {factor !== 1 && (
-            <div className="mt-3 flex items-center text-xs font-bold text-slate-500 bg-slate-100 w-fit px-2 py-1 rounded-md">
-              Original: {formatCurrency(totalD)} • Fator: x{factor.toFixed(2)}
-            </div>
-          )}
+          <h2 className="text-3xl font-black text-emerald-800">{formatCurrency(totalD)}</h2>
         </div>
       </div>
 
@@ -312,9 +282,6 @@ export const AnalysisDetail = () => {
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase">ATM / Identificação</th>
                   <th className="px-6 py-4 text-[10px] font-black text-primary-600 uppercase text-right">Sacado (R$)</th>
                   <th className="px-6 py-4 text-[10px] font-black text-emerald-600 uppercase text-right">Depositado (R$)</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase text-center">Fator</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-primary-700 uppercase text-right">Sacado Ajustado</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-emerald-700 uppercase text-right">Depositado Ajustado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -337,15 +304,6 @@ export const AnalysisDetail = () => {
                     <td className="px-6 py-4 text-right">
                       <span className="text-sm font-bold text-emerald-700">{formatCurrency(atm.deposit)}</span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-sm font-black text-slate-600">x{factor.toFixed(2)}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-black text-primary-900">{formatCurrency(atm.withdrawal * factor)}</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="text-sm font-black text-emerald-800">{formatCurrency(atm.deposit * factor)}</span>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -354,9 +312,6 @@ export const AnalysisDetail = () => {
                   <td className="px-6 py-4 text-xs font-black text-slate-500 uppercase">Totais</td>
                   <td className="px-6 py-4 text-right text-sm font-black text-primary-800">{formatCurrency(totalW)}</td>
                   <td className="px-6 py-4 text-right text-sm font-black text-emerald-700">{formatCurrency(totalD)}</td>
-                  <td className="px-6 py-4 text-center text-sm font-black text-slate-600">x{factor.toFixed(2)}</td>
-                  <td className="px-6 py-4 text-right text-sm font-black text-primary-900">{formatCurrency(adjustedTotalW)}</td>
-                  <td className="px-6 py-4 text-right text-sm font-black text-emerald-800">{formatCurrency(adjustedTotalD)}</td>
                 </tr>
               </tfoot>
             </table>

@@ -17,7 +17,8 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 
   try {
-    const filename = req.file.originalname.toLowerCase();
+    const filenameOriginal = req.file.originalname;
+    const filename = filenameOriginal.toLowerCase();
     
     // Check if it's text based on extension or mimetype
     const isTextFallback = filename.endsWith('.txt') || filename.endsWith('.csv') || req.file.mimetype.includes('text') || !filename.includes('.');
@@ -39,9 +40,9 @@ router.post('/', upload.single('file'), async (req, res) => {
       let recordsProcessed = 0;
       let skippedLines = 0;
 
-      const atmRows = await db('tb_atms').select('id', 'number');
+      const atmRows = await db('tb_atms').select('id', 'numero');
       const atmMap = new Map();
-      atmRows.forEach(a => atmMap.set(a.number, a.id));
+      atmRows.forEach(a => atmMap.set(a.numero, a.id));
       
       let defaultCustodyId = null;
       let maxDate = null;
@@ -81,9 +82,9 @@ router.post('/', upload.single('file'), async (req, res) => {
           const amount = parseFloat(valorStr) / 100;
 
           // Parse transaction type
-          let transactionType = 'withdrawal'; // Default to withdrawal (SAQUE)
-          if (tipo.toUpperCase() === 'SAQUE') transactionType = 'withdrawal';
-          else if (tipo.toUpperCase() === 'DEPOSITO') transactionType = 'deposit';
+          let transactionType = 'saque'; // Default to saque (SAQUE)
+          if (tipo.toUpperCase() === 'SAQUE') transactionType = 'saque';
+          else if (tipo.toUpperCase() === 'DEPOSITO') transactionType = 'deposito';
 
           // Format DataHora da transação
           let transactionDatetime = null;
@@ -103,29 +104,30 @@ router.post('/', upload.single('file'), async (req, res) => {
              if (!defaultCustodyId) {
                 const custody = await trx('tb_custodias').first();
                 if (!custody) {
-                   const [cId] = await trx('tb_custodias').insert({ name: 'Custódia Padrão' });
+                   const [cId] = await trx('tb_custodias').insert({ nome: 'Custódia Padrão' });
                    defaultCustodyId = cId;
                 } else {
                    defaultCustodyId = custody.id;
                 }
              }
              const [newAtmId] = await trx('tb_atms').insert({
-                number: atmCode,
-                custody_id: defaultCustodyId
+                numero: atmCode,
+                id_custodia: defaultCustodyId
              });
              atmId = newAtmId;
              atmMap.set(atmCode, newAtmId);
           }
 
           transactionsToInsert.push({
-            atm_id: atmId,
-            amount: amount,
-            type: transactionType,
-            transaction_datetime: transactionDatetime,
-            accounting_date: accountingDate,
-            accounting_control: controleContabil.substring(0, 15),
+            id_atm: atmId,
+            valor: amount,
+            tipo: transactionType,
+            data_hora_transacao: transactionDatetime,
+            data_contabil: accountingDate,
+            controle_contabil: controleContabil.substring(0, 15),
             nsu: nsu.substring(0, 6),
-            date: accountingDate // backwards compatibility
+            data: accountingDate,
+            nome_arquivo: filenameOriginal
           });
 
           if (accountingDate && (!maxDate || accountingDate > maxDate)) {
@@ -160,15 +162,15 @@ router.post('/', upload.single('file'), async (req, res) => {
         for (const row of data) {
           if (!row.Custody || !row.ATM || !row.Date || !row.Type || !row.Amount) continue;
 
-          let custody = await trx('tb_custodias').where({ name: row.Custody }).first();
+          let custody = await trx('tb_custodias').where({ nome: row.Custody }).first();
           if (!custody) {
-            const [id] = await trx('tb_custodias').insert({ name: row.Custody });
+            const [id] = await trx('tb_custodias').insert({ nome: row.Custody });
             custody = { id, name: row.Custody };
           }
 
-          let atm = await trx('tb_atms').where({ number: row.ATM.toString() }).first();
+          let atm = await trx('tb_atms').where({ numero: row.ATM.toString() }).first();
           if (!atm) {
-            const [id] = await trx('tb_atms').insert({ number: row.ATM.toString(), custody_id: custody.id });
+            const [id] = await trx('tb_atms').insert({ numero: row.ATM.toString(), id_custodia: custody.id });
             atm = { id, number: row.ATM.toString(), custody_id: custody.id };
           }
 
@@ -178,10 +180,11 @@ router.post('/', upload.single('file'), async (req, res) => {
           }
 
           await trx('tb_transacoes').insert({
-            atm_id: atm.id,
-            date: parsedDate,
-            type: row.Type.toLowerCase() === 'deposit' ? 'deposit' : 'withdrawal',
-            amount: parseFloat(row.Amount)
+            id_atm: atm.id,
+            data: parsedDate,
+            tipo: row.Type.toLowerCase() === 'deposit' ? 'deposito' : 'saque',
+            valor: parseFloat(row.Amount),
+            nome_arquivo: filenameOriginal
           });
         }
       });

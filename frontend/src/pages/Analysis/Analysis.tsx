@@ -1,4 +1,4 @@
-import { Plus, Calculator, Database, TrendingUp, Calendar, ArrowRight, Loader2 } from 'lucide-react';
+import { Plus, Database, TrendingUp, Calendar, ArrowRight, Loader2, Trash2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { API_URL } from '../../config';
 
@@ -41,12 +41,7 @@ export const Analysis = () => {
     action: 'Maior'
   })));
 
-  const [dateRowsByRowId, setDateRowsByRowId] = useState<Record<number, any[]>>({ 
-    0: [
-      { id: 1, date: '2025-11-03', week: 'Segunda-feira', amountW: '147.315.545,25', amountD: '64.120.300,00', factorW: '1,20', factorD: '1,10' },
-      { id: 2, date: '2026-02-02', week: 'Segunda-feira', amountW: '154.974.259,20', amountD: '71.550.250,50', factorW: '1,15', factorD: '1,05' },
-    ] 
-  });
+  const [dateRowsByRowId, setDateRowsByRowId] = useState<Record<number, any[]>>({});
 
   const [loadingTotals, setLoadingTotals] = useState(false);
   const [actionFinalMacro, setActionFinalMacro] = useState('Maior');
@@ -94,10 +89,8 @@ export const Analysis = () => {
           if (data.actionFinalMacro) setActionFinalMacro(data.actionFinalMacro);
           if (data.actionFinalMicro) setActionFinalMicro(data.actionFinalMicro);
         } else {
-          // Reset to default if no analysis found? 
-          // Maybe better to keep current or clear. User usually wants to start fresh.
-          // But actually, resetting might be annoying if they change date by mistake.
-          // For now, let's just not reset if null.
+          // Reset if no saved analysis
+          setDateRowsByRowId({});
         }
       } catch (err) {
         console.error('Erro ao buscar análise:', err);
@@ -242,43 +235,6 @@ export const Analysis = () => {
     return () => clearTimeout(handler);
   }, [rows, dateRowsByRowId, actionFinalMacro, actionFinalMicro, selectedCustodyId, referenceDate, loadingTotals, fetchingAnalysis]);
 
-  const [saving, setSaving] = useState(false);
-
-  const handleSaveAnalysis = async () => {
-    if (!selectedCustodyId) {
-      alert('Selecione uma custódia primeiro.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const config = {
-        lines: rows,
-        dateRows: dateRowsByRowId,
-        actionFinalMacro,
-        actionFinalMicro
-      };
-
-      const res = await fetch(`${API_URL}/api/analyses`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          custodyId: selectedCustodyId,
-          referenceDate,
-          config
-        })
-      });
-
-      if (!res.ok) throw new Error('Erro ao salvar análise');
-      // No alert needed if we auto-save, but keeping the visual trigger for manual confirmation
-      setTimeout(() => setSaving(false), 500);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Erro ao salvar');
-      setSaving(false);
-    }
-  };
 
   const handleUpdateDateRow = (dateRowId: number, field: string, value: string) => {
     setDateRowsByRowId(prev => ({
@@ -304,10 +260,7 @@ export const Analysis = () => {
           <h1 className="text-2xl font-bold text-slate-900">Análise de Abastecimento</h1>
           <p className="text-slate-500 mt-1">Defina fatores e algoritmos para predição de ATMs.</p>
         </div>
-        <div className="text-right">
-           <p className="text-sm font-bold text-slate-600 mb-1">{getDayOfWeek(referenceDate)}</p>
-           <p className="text-xs text-slate-400 uppercase tracking-tighter">Data de Referência</p>
-        </div>
+
       </div>
 
       {/* Top Header Controls */}
@@ -340,18 +293,10 @@ export const Analysis = () => {
           </div>
           <div className="flex space-x-3 lg:col-span-2">
              <button 
-               onClick={handleSaveAnalysis}
-               disabled={saving}
-               className="flex-1 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg transition-all flex items-center justify-center shadow-lg shadow-primary-200"
-             >
-               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Calculator className="w-4 h-4 mr-2" />}
-               {saving ? 'SALVANDO...' : 'CALCULAR PREDIÇÃO'}
-             </button>
-             <button 
                onClick={() => window.location.href = `/analysis/detail?custody=${selectedCustodyId}&date=${referenceDate}`}
-               className="px-4 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-lg transition-all flex items-center justify-center shadow-sm"
+               className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 rounded-lg transition-all flex items-center justify-center shadow-lg shadow-primary-200"
              >
-                DETALHAR <ArrowRight className="ml-2 w-4 h-4" />
+                DETALHAR AGORA <ArrowRight className="ml-2 w-4 h-4" />
              </button>
           </div>
         </div>
@@ -386,25 +331,32 @@ export const Analysis = () => {
             </div>
           </div>
 
-          <div className="hidden lg:flex items-center space-x-6 ml-auto bg-slate-900 px-6 py-3 rounded-xl shadow-inner border border-slate-800">
-             {fetchingAnalysis ? (
-               <div className="flex items-center space-x-2 text-white">
-                 <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
-                 <span className="text-xs font-bold uppercase">Carregando análise...</span>
-               </div>
-             ) : (
-               <>
-                 <div>
-                   <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Previsão Saque</p>
-                   <p className="text-xl font-black text-white">{formatCurrency(predictionW)}</p>
+          <div className="hidden lg:flex items-center space-x-5 ml-auto">
+             <div className="bg-slate-900 px-6 py-3 rounded-xl shadow-inner border border-slate-800 text-center flex flex-col justify-center min-w-[140px]">
+               <p className="text-base font-black text-blue-300 leading-tight">{getDayOfWeek(referenceDate)}</p>
+               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-0.5">Data de Referência</p>
+             </div>
+
+             <div className="flex items-center space-x-6 bg-slate-900 px-6 py-3 rounded-xl shadow-inner border border-slate-800">
+               {fetchingAnalysis ? (
+                 <div className="flex items-center space-x-2 text-white">
+                   <Loader2 className="w-5 h-5 animate-spin text-primary-500" />
+                   <span className="text-xs font-bold uppercase">Carregando análise...</span>
                  </div>
-                 <div className="h-8 border-r border-slate-700"></div>
-                 <div>
-                   <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-0.5">Previsão Depósito</p>
-                   <p className="text-xl font-black text-emerald-400">{formatCurrency(predictionD)}</p>
-                 </div>
-               </>
-             )}
+               ) : (
+                 <>
+                   <div>
+                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-0.5">Previsão Saque</p>
+                     <p className="text-xl font-black text-white">{formatCurrency(predictionW)}</p>
+                   </div>
+                   <div className="h-8 border-r border-slate-700"></div>
+                   <div>
+                     <p className="text-[10px] text-emerald-400 font-black uppercase tracking-widest mb-0.5">Previsão Depósito</p>
+                     <p className="text-xl font-black text-emerald-400">{formatCurrency(predictionD)}</p>
+                   </div>
+                 </>
+               )}
+             </div>
           </div>
         </div>
       </div>
@@ -429,10 +381,11 @@ export const Analysis = () => {
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-white z-10">
                 <tr className="border-b border-slate-100">
-                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase">#</th>
-                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase text-center">Macro</th>
-                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase text-center">Micro</th>
+                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase w-10">#</th>
+                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase text-center w-16">Macro</th>
+                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase text-center w-16">Micro</th>
                   <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase">Ação</th>
+                  <th className="px-3 py-2.5 text-[10px] font-black text-slate-400 uppercase text-center w-12">Excluir</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -440,17 +393,19 @@ export const Analysis = () => {
                   <tr 
                     key={row.id} 
                     onClick={() => setSelectedRowIndex(i)}
-                    className={`cursor-pointer transition-all ${i === selectedRowIndex ? 'bg-primary-50/50' : 'hover:bg-slate-50'}`}
+                    className={`cursor-pointer transition-all ${i === selectedRowIndex ? 'bg-primary-50' : 'hover:bg-slate-50'}`}
                   >
-                    <td className="px-3 py-3 text-xs font-bold text-slate-400">{i + 1}</td>
+                    <td className={`px-3 py-3 text-xs font-black border-l-4 ${i === selectedRowIndex ? 'text-primary-700 border-primary-600' : 'text-slate-400 border-transparent'}`}>
+                      {i + 1}
+                    </td>
                     <td className="px-3 py-3">
                       <div className="flex justify-center">
                         <input 
                           type="checkbox" 
                           checked={row.macro} 
-                          onChange={() => {
+                          onChange={(e) => {
                              const newRows = [...rows];
-                             newRows[i].macro = !newRows[i].macro;
+                             newRows[i].macro = e.target.checked;
                              setRows(newRows);
                           }}
                           className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" 
@@ -462,9 +417,9 @@ export const Analysis = () => {
                         <input 
                           type="checkbox" 
                           checked={row.micro} 
-                          onChange={() => {
+                          onChange={(e) => {
                              const newRows = [...rows];
-                             newRows[i].micro = !newRows[i].micro;
+                             newRows[i].micro = e.target.checked;
                              setRows(newRows);
                           }}
                           className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" 
@@ -479,13 +434,29 @@ export const Analysis = () => {
                             newRows[i].action = e.target.value;
                             setRows(newRows);
                          }}
-                         className="w-full bg-transparent text-xs font-bold text-slate-700 outline-none"
+                         onClick={(e) => e.stopPropagation()}
+                         className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm transition-all"
                        >
                          <option>Maior</option>
                          <option>Média</option>
                          <option>Menor</option>
                          <option>Soma</option>
                        </select>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                       <button 
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           if (rows.length <= 1) return;
+                           const newRows = rows.filter((_, idx) => idx !== i);
+                           setRows(newRows);
+                           if (selectedRowIndex >= newRows.length) setSelectedRowIndex(Math.max(0, newRows.length - 1));
+                         }}
+                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200"
+                         title="Excluir Algoritmo"
+                       >
+                         <Trash2 className="w-4 h-4" />
+                       </button>
                     </td>
                   </tr>
                 ))}
@@ -499,7 +470,7 @@ export const Analysis = () => {
           <div className="bg-slate-50 border-b border-slate-100 px-5 py-3.5 flex justify-between items-center">
              <div className="flex items-center space-x-2">
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-bold text-slate-800 text-sm">Datas de Cálculo (Linha {selectedRowIndex + 1})</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Algoritmo {selectedRowIndex + 1}</h3>
              </div>
              <button 
                onClick={() => {
@@ -523,7 +494,7 @@ export const Analysis = () => {
                 <tr>
                   <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase">Data</th>
                   <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Semana</th>
-                  <th className="px-5 py-3 text-[10px] font-black text-primary-600 uppercase text-right">Sacado (R$)</th>
+                  <th className="px-5 py-3 text-[10px] font-black text-primary-600 uppercase text-right min-w-[140px]">Sacado (R$)</th>
                   <th className="px-5 py-3 text-[10px] font-black text-slate-400 uppercase text-center w-24">Fator S.</th>
                   <th className="px-5 py-3 text-[10px] font-black text-primary-700 uppercase text-right">Total S. (R$)</th>
                   <th className="px-5 py-3 text-[10px] font-black text-emerald-600 uppercase text-right">Depositado (R$)</th>
@@ -592,8 +563,8 @@ export const Analysis = () => {
           {/* Table Footer with Summary */}
           <div className="bg-slate-50 border-t border-slate-100 p-4 flex justify-between items-center text-sm">
              <div className="flex space-x-6">
-                <p className="text-slate-500 font-bold uppercase text-[10px]">Subtotal Linha {selectedRowIndex + 1}:</p>
-                <p className="font-bold text-primary-700">W: {formatCurrency(activeDateRows.reduce((a, b) => a + (parseCurrency(b.amountW) * parseCurrency(b.factorW)), 0))}</p>
+                <p className="text-slate-500 font-bold uppercase text-[10px]">Análise de Algoritmos Linha {selectedRowIndex + 1}:</p>
+                <p className="font-bold text-primary-700">S: {formatCurrency(activeDateRows.reduce((a, b) => a + (parseCurrency(b.amountW) * parseCurrency(b.factorW)), 0))}</p>
                 <p className="font-bold text-emerald-700">D: {formatCurrency(activeDateRows.reduce((a, b) => a + (parseCurrency(b.amountD) * parseCurrency(b.factorD)), 0))}</p>
              </div>
              {loadingTotals && <span className="text-[10px] font-black text-primary-600 animate-pulse uppercase">Atualizando dados...</span>}

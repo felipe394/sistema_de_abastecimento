@@ -18,7 +18,7 @@ const adminOnly = (req, res, next) => {
 // GET /api/users
 router.get('/', adminOnly, async (req, res) => {
   try {
-    const users = await db('tb_usuarios').select('id', 'name', 'email', 'role', 'created_at');
+    const users = await db('tb_usuarios').select('id', 'nome as name', 'email', 'perfil as role', 'created_at');
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: 'Erro ao buscar usuários' });
@@ -33,10 +33,10 @@ router.post('/', adminOnly, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
     
     const [id] = await db('tb_usuarios').insert({
-      name,
+      nome: name,
       email,
-      password: hashedPassword,
-      role: role || 'analyst'
+      senha: hashedPassword,
+      perfil: role || 'analista'
     });
     
     res.status(201).json({ id, name, email, role });
@@ -48,12 +48,12 @@ router.post('/', adminOnly, async (req, res) => {
 // PUT /api/users/:id
 router.put('/:id', adminOnly, async (req, res) => {
   const { name, email, password, role } = req.body;
-  const updateData = { name, email, role };
+  const updateData = { nome: name, email, perfil: role };
   
   try {
     if (password) {
       const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
+      updateData.senha = await bcrypt.hash(password, salt);
     }
     
     await db('tb_usuarios').where({ id: req.params.id }).update(updateData);
