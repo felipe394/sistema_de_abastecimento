@@ -35,6 +35,9 @@ app.use('/import', require('./src/routes/import'));
 app.use('/api/analyses', require('./src/routes/analyses'));
 app.use('/analyses', require('./src/routes/analyses'));
 
+app.use('/api/dashboard', require('./src/routes/dashboard'));
+app.use('/dashboard', require('./src/routes/dashboard'));
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {

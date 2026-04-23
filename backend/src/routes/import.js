@@ -17,8 +17,9 @@ router.post('/', upload.single('file'), async (req, res) => {
   }
 
   try {
-    const filenameOriginal = req.file.originalname;
+    const filenameOriginal = req.file.originalname || 'arquivo_desconhecido';
     const filename = filenameOriginal.toLowerCase();
+    console.log(`[Import] Iniciando processamento do arquivo: ${filenameOriginal}`);
     
     // Check if it's text based on extension or mimetype
     const isTextFallback = filename.endsWith('.txt') || filename.endsWith('.csv') || req.file.mimetype.includes('text') || !filename.includes('.');
@@ -45,6 +46,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       atmRows.forEach(a => atmMap.set(a.numero, a.id));
       
       let defaultCustodyId = null;
+      let minDate = null;
       let maxDate = null;
       const transactionsToInsert = [];
 
@@ -118,6 +120,8 @@ router.post('/', upload.single('file'), async (req, res) => {
              atmMap.set(atmCode, newAtmId);
           }
 
+          const transactionDate = transactionDatetime ? transactionDatetime.split(' ')[0] : accountingDate;
+
           transactionsToInsert.push({
             id_atm: atmId,
             valor: amount,
@@ -126,28 +130,36 @@ router.post('/', upload.single('file'), async (req, res) => {
             data_contabil: accountingDate,
             controle_contabil: controleContabil.substring(0, 15),
             nsu: nsu.substring(0, 6),
-            data: accountingDate,
+            data: transactionDate,
             nome_arquivo: filenameOriginal
           });
 
-          if (accountingDate && (!maxDate || accountingDate > maxDate)) {
-             maxDate = accountingDate;
+          if (transactionDate) {
+            if (!minDate || transactionDate < minDate) minDate = transactionDate;
+            if (!maxDate || transactionDate > maxDate) maxDate = transactionDate;
           }
           recordsProcessed++;
         }
         
-        // Batch insert processing
-        const chunkSize = 1500;
+        // Batch insert processing with duplicate prevention
+        const chunkSize = 1000;
         for (let i = 0; i < transactionsToInsert.length; i += chunkSize) {
-           await trx('tb_transacoes').insert(transactionsToInsert.slice(i, i + chunkSize));
+           await trx('tb_transacoes')
+             .insert(transactionsToInsert.slice(i, i + chunkSize))
+             .onConflict(['id_atm', 'data_hora_transacao', 'valor', 'tipo', 'nsu'])
+             .ignore();
         }
+        console.log(`[Import] ${recordsProcessed} registros de texto processados.`);
       });
       
       if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       
-      const referMsg = maxDate ? maxDate.split('-').reverse().join('/') : '';
+      const dateRangeMsg = minDate && maxDate 
+        ? `Período: ${minDate.split('-').reverse().join('/')} a ${maxDate.split('-').reverse().join('/')}`
+        : '';
+
       return res.json({ 
-        message: `✅ Importação concluída!\nVeja a data de referência ${referMsg} na tela de análise de ATMs.`, 
+        message: `✅ Importação do arquivo "${filenameOriginal}" concluída!\n${dateRangeMsg}`, 
         recordsProcessed, 
         skippedLines 
       });
@@ -157,6 +169,10 @@ router.post('/', upload.single('file'), async (req, res) => {
       const workbook = xlsx.readFile(req.file.path);
       const sheetName = workbook.SheetNames[0];
       const data = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName]);
+
+      const transactionsToInsert = [];
+      let minDate = null;
+      let maxDate = null;
 
       await db.transaction(async trx => {
         for (const row of data) {
@@ -179,18 +195,38 @@ router.post('/', upload.single('file'), async (req, res) => {
             parsedDate = new Date((row.Date - (25567 + 2)) * 86400 * 1000).toISOString().split('T')[0];
           }
 
-          await trx('tb_transacoes').insert({
+          transactionsToInsert.push({
             id_atm: atm.id,
             data: parsedDate,
             tipo: row.Type.toLowerCase() === 'deposit' ? 'deposito' : 'saque',
             valor: parseFloat(row.Amount),
             nome_arquivo: filenameOriginal
           });
+
+          if (parsedDate) {
+            if (!minDate || parsedDate < minDate) minDate = parsedDate;
+            if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
+          }
+        }
+
+        // Batch insert for Excel too
+        const chunkSize = 1000;
+        for (let i = 0; i < transactionsToInsert.length; i += chunkSize) {
+          await trx('tb_transacoes')
+            .insert(transactionsToInsert.slice(i, i + chunkSize))
+            .onConflict(['id_atm', 'data_hora_transacao', 'valor', 'tipo', 'nsu'])
+            .ignore();
         }
       });
 
       if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-      res.json({ message: 'Importação realizada com sucesso', recordsProcessed: data.length });
+      
+      const dateRangeMsg = minDate && maxDate 
+        ? `Período: ${minDate.split('-').reverse().join('/')} a ${maxDate.split('-').reverse().join('/')}`
+        : '';
+
+      console.log(`[Import] ${data.length} registros Excel processados.`);
+      res.json({ message: `Importação do arquivo "${filenameOriginal}" realizada com sucesso!\n${dateRangeMsg}`, recordsProcessed: data.length });
     }
   } catch (err) {
     console.error(err);

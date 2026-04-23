@@ -55,29 +55,30 @@ D:41275               ;20260328135348;20260330;761941275606301;SAQUE            
           accountingDate = `${dataContabilStr.substring(0,4)}-${dataContabilStr.substring(4,6)}-${dataContabilStr.substring(6,8)}`;
         }
 
-        let atm = await trx('tb_atms').where({ number: atmCode }).first();
+        let atm = await trx('tb_atms').where({ numero: atmCode }).first();
         if (!atm) {
           let custody = await trx('tb_custodias').first();
           if (!custody) {
-             const [custodyId] = await trx('tb_custodias').insert({ name: 'Custódia Padrão' });
+             const [custodyId] = await trx('tb_custodias').insert({ nome: 'Custódia Padrão' });
              custody = { id: custodyId };
           }
           const [atmId] = await trx('tb_atms').insert({
-            number: atmCode,
-            custody_id: custody.id
+            numero: atmCode,
+            id_custodia: custody.id
           });
-          atm = { id: atmId, number: atmCode };
+          atm = { id: atmId, numero: atmCode };
         }
 
         const insertPayload = {
-          atm_id: atm.id,
-          amount: amount,
-          type: transactionType,
-          transaction_datetime: transactionDatetime,
-          accounting_date: accountingDate,
-          accounting_control: controleContabil.substring(0, 15),
+          id_atm: atm.id,
+          valor: amount,
+          tipo: transactionType === 'withdrawal' ? 'saque' : 'deposito',
+          data_hora_transacao: transactionDatetime,
+          data_contabil: accountingDate,
+          controle_contabil: controleContabil.substring(0, 15),
           nsu: nsu.substring(0, 6),
-          date: accountingDate
+          data: accountingDate,
+          nome_arquivo: 'DEBUG_TEST_FILE.txt'
         };
         console.log("Inserting:", insertPayload);
         

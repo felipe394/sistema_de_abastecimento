@@ -19,17 +19,19 @@ async function seedTransactions() {
       for (const date of dates) {
         // Withdrawal
         transactions.push({
-          atm_id: atm.id,
-          type: 'withdrawal',
-          amount: Math.floor(Math.random() * 50000) + 10000,
-          date: date
+          id_atm: atm.id,
+          tipo: 'saque',
+          valor: Math.floor(Math.random() * 50000) + 10000,
+          data: date,
+          nome_arquivo: 'SEED_DATA.xlsx'
         });
         // Deposit
         transactions.push({
-          atm_id: atm.id,
-          type: 'deposit',
-          amount: Math.floor(Math.random() * 30000) + 5000,
-          date: date
+          id_atm: atm.id,
+          tipo: 'deposito',
+          valor: Math.floor(Math.random() * 30000) + 5000,
+          data: date,
+          nome_arquivo: 'SEED_DATA.xlsx'
         });
       }
     }

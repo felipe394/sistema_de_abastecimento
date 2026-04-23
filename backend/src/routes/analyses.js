@@ -21,31 +21,44 @@ async function getDetailData(custodyId, referenceDate) {
   const { lines, dateRows, actionFinalMacro, actionFinalMicro } = config;
 
   const atms = await db('tb_atms').where({ id_custodia: custodyId });
+  if (atms.length === 0) return { custody: await db('tb_custodias').where({ id: custodyId }).first(), referenceDate, atms: [], availableDates: [] };
+
   const allDates = Object.values(dateRows).flat().map(d => d.date).filter(Boolean);
   const uniqueDates = [...new Set(allDates)];
   
-  const transactions = await db('tb_transacoes')
-    .where({ id_atm: atms.map(a => a.id) })
-    .whereIn('data', uniqueDates);
+  let transactions = [];
+  if (uniqueDates.length > 0) {
+    transactions = await db('tb_transacoes')
+      .whereIn('id_atm', atms.map(a => a.id))
+      .whereIn('data', uniqueDates);
+  }
 
-  const getAtmPrediction = (atmId, type) => {
-    const rowValues = lines
-      .filter(row => row.macro)
+  // 1. Calculate Daily Totals for the Custody (Macro level)
+  const dailyTotals = uniqueDates.map(date => {
+    const dayTrans = transactions.filter(t => t.data.toISOString().split('T')[0] === date);
+    return {
+      date,
+      withdrawal: dayTrans.filter(t => t.tipo === 'saque').reduce((a, b) => a + parseFloat(b.valor), 0),
+      deposit: dayTrans.filter(t => t.tipo === 'deposito').reduce((a, b) => a + parseFloat(b.valor), 0)
+    };
+  });
+  const getFinalPrediction = (type, isMicro) => {
+    let activeLines = lines.filter(row => isMicro ? row.micro : row.macro);
+    
+    // Fallback: if no micro lines are selected, use macro lines as baseline for ATMs
+    if (isMicro && activeLines.length === 0) {
+      activeLines = lines.filter(row => row.macro);
+    }
+
+    const actionFinal = isMicro ? actionFinalMicro : actionFinalMacro;
+    const rowValues = activeLines
       .map(row => {
         const rowDates = dateRows[row.id] || [];
         const dailyValues = rowDates.map(rd => {
-          const trans = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date);
-          const baseAmount = trans ? (type === 'W' ? trans.valor : trans.valor) : 0; // Wait, if type is W should it be withdrawal? 
-          // Actually, in the original code: trans ? (type === 'W' ? trans.withdrawal : trans.deposit) : 0;
-          // But I need to handle types!
-          
-          // Let's refine this to filter by tipo.
-          const transValue = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date && t.tipo === (type === 'W' ? 'saque' : 'deposito'));
-          const baseAmountVal = transValue ? transValue.valor : 0;
-          
-          const factorString = type === 'W' ? rd.factorW : rd.factorD;
-          const factor = parseFloat(factorString.replace(',', '.')) || 1;
-          return baseAmountVal * factor;
+          const factor = parseFloat(String(type === 'W' ? rd.factorW : rd.factorD).replace(',', '.')) || 1;
+          const dayTotal = dailyTotals.find(dt => dt.date === rd.date);
+          const baseVal = dayTotal ? (type === 'W' ? dayTotal.withdrawal : dayTotal.deposit) : 0;
+          return baseVal * factor;
         });
 
         if (dailyValues.length === 0) return 0;
@@ -59,7 +72,7 @@ async function getDetailData(custodyId, referenceDate) {
       });
 
     if (rowValues.length === 0) return 0;
-    switch (actionFinalMacro) {
+    switch (actionFinal) {
       case 'Maior': return Math.max(...rowValues);
       case 'Menor': return Math.min(...rowValues);
       case 'Média': return rowValues.reduce((a, b) => a + b, 0) / rowValues.length;
@@ -68,18 +81,102 @@ async function getDetailData(custodyId, referenceDate) {
     }
   };
 
-  const results = atms.map(atm => ({
-    id: atm.numero,
-    name: `ATM ${atm.numero}`,
-    withdrawal: getAtmPrediction(atm.id, 'W'),
-    deposit: getAtmPrediction(atm.id, 'D'),
+  // MACRO prediction for the cards
+  const macroTotalW = getFinalPrediction('W', false);
+  const macroTotalD = getFinalPrediction('D', false);
+
+  const getAtmDetailedInfo = (atmId, type) => {
+    const dailyData = {};
+    let activeLines = lines.filter(row => row.micro);
+    if (activeLines.length === 0) activeLines = lines.filter(row => row.macro);
+
+    const rowValues = activeLines
+      .map(row => {
+        const rowDates = dateRows[row.id] || [];
+        const dailyValues = rowDates.map(rd => {
+          const transValue = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date && t.tipo === (type === 'W' ? 'saque' : 'deposito'));
+          const raw = transValue ? parseFloat(transValue.valor) : 0;
+          const factor = parseFloat(String(type === 'W' ? rd.factorW : rd.factorD).replace(',', '.')) || 1;
+          const adjusted = raw * factor;
+
+          if (!dailyData[rd.date]) dailyData[rd.date] = { rawW: 0, adjW: 0, factorW: 1, rawD: 0, adjD: 0, factorD: 1 };
+          if (type === 'W') {
+            dailyData[rd.date].rawW = raw; dailyData[rd.date].adjW = adjusted; dailyData[rd.date].factorW = factor;
+          } else {
+            dailyData[rd.date].rawD = raw; dailyData[rd.date].adjD = adjusted; dailyData[rd.date].factorD = factor;
+          }
+          return adjusted;
+        });
+
+        if (dailyValues.length === 0) return 0;
+        switch (row.action) {
+          case 'Maior': return Math.max(...dailyValues);
+          case 'Menor': return Math.min(...dailyValues);
+          case 'Média': return dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+          case 'Soma': return dailyValues.reduce((a, b) => a + b, 0);
+          default: return 0;
+        }
+      });
+
+    let microPrediction = 0;
+    if (rowValues.length > 0) {
+      switch (actionFinalMicro) {
+        case 'Maior': microPrediction = Math.max(...rowValues); break;
+        case 'Menor': microPrediction = Math.min(...rowValues); break;
+        case 'Média': microPrediction = rowValues.reduce((a, b) => a + b, 0) / rowValues.length; break;
+        case 'Soma': microPrediction = rowValues.reduce((a, b) => a + b, 0); break;
+      }
+    }
+    return { dailyData, microPrediction };
+  };
+
+  const atmResults = atms.map(atm => {
+    const infoW = getAtmDetailedInfo(atm.id, 'W');
+    const infoD = getAtmDetailedInfo(atm.id, 'D');
+    const dailyData = infoW.dailyData;
+    Object.keys(infoD.dailyData).forEach(date => {
+      if (!dailyData[date]) dailyData[date] = infoD.dailyData[date];
+      else {
+        dailyData[date].rawD = infoD.dailyData[date].rawD;
+        dailyData[date].adjD = infoD.dailyData[date].adjD;
+        dailyData[date].factorD = infoD.dailyData[date].factorD;
+      }
+    });
+
+    return {
+      id: atm.id,
+      number: atm.numero,
+      name: `ATM ${atm.numero}`,
+      microPredictionW: infoW.microPrediction,
+      microPredictionD: infoD.microPrediction,
+      dailyData
+    };
+  });
+
+  const microSumW = atmResults.reduce((a, b) => a + b.microPredictionW, 0);
+  const microSumD = atmResults.reduce((a, b) => a + b.microPredictionD, 0);
+
+  const indexW = microSumW > 0 ? (macroTotalW / microSumW) : 1;
+  const indexD = microSumD > 0 ? (macroTotalD / microSumD) : 1;
+
+  const finalAtms = atmResults.map(atm => ({
+    ...atm,
+    withdrawal: atm.microPredictionW * indexW,
+    deposit: atm.microPredictionD * indexD,
   }));
 
   const custody = await db('tb_custodias').where({ id: custodyId }).first();
-
-  return { custody, referenceDate, atms: results };
+  return { 
+    custody, referenceDate, 
+    atms: finalAtms, 
+    availableDates: uniqueDates,
+    summary: {
+      macroW: macroTotalW, macroD: macroTotalD,
+      microW: microSumW, microD: microSumD,
+      indexW, indexD
+    }
+  };
 }
-
 
 // POST /api/analyses/calculate
 // Calculates the prediction index based on the user's configuration
@@ -177,10 +274,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET /api/analyses/detail
+// POST /api/analyses/detail
 // Returns detailed ATM-level predictions based on saved analysis
-router.get('/detail', async (req, res) => {
-  const { custodyId, referenceDate } = req.query;
+router.post('/detail', async (req, res) => {
+  const { custodyId, referenceDate } = req.body;
   if (!custodyId || !referenceDate) {
     return res.status(400).json({ error: 'Parâmetros ausentes' });
   }
@@ -225,62 +322,86 @@ async function getAtmTotalsForDate(custodyId, date) {
   return results;
 }
 
-// POST /api/analyses/export/pdf
-// Exports consolidation to PDF — receives data from the frontend
 router.post('/export/pdf', async (req, res) => {
-  const { custodyId, date, factor } = req.body;
+  const { custodyId, date } = req.body;
   if (!custodyId || !date) {
     return res.status(400).json({ error: 'Parâmetros ausentes (custodyId, date)' });
   }
 
   try {
     const custody = await db('tb_custodias').where({ id: custodyId }).first();
-    const atms = await getAtmTotalsForDate(custodyId, date);
-    const f = parseFloat(factor) || 1;
+    const data = await getDetailData(custodyId, date);
+    const atms = data.atms;
 
     const formatBRL = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    const doc = new PDFDocument({ margin: 50 });
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=consolidacao_${custodyId}_${date}.pdf`);
     doc.pipe(res);
 
-    // Title
-    doc.fontSize(18).font('Helvetica-Bold').text('Consolidacao de Predicao', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(11).font('Helvetica').text(`Custodia: ${custody ? custody.nome : custodyId}`, { align: 'center' });
-    doc.text(`Data: ${date}  |  Fator de Ajuste: x${f.toFixed(2)}`, { align: 'center' });
-    doc.moveDown(1.5);
+    // Header with better styling
+    doc.rect(0, 0, 600, 80).fill('#0f172a');
+    doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('CONSOLIDAÇÃO DE ABASTECIMENTO', 50, 25);
+    doc.fontSize(10).font('Helvetica').text(`CUSTÓDIA: ${custody ? custody.nome.toUpperCase() : custodyId}  |  DATA REF: ${date.split('-').reverse().join('/')}`, 50, 52);
+    
+    doc.fillColor('#000000').moveDown(4);
 
-    // Totals
+    // Summary Box
     const totalW = atms.reduce((a, b) => a + b.withdrawal, 0);
     const totalD = atms.reduce((a, b) => a + b.deposit, 0);
-    doc.fontSize(12).font('Helvetica-Bold').text(`Total Sacado: R$ ${formatBRL(totalW * f)}`);
-    doc.text(`Total Depositado: R$ ${formatBRL(totalD * f)}`);
-    doc.moveDown(1.5);
+    
+    doc.rect(50, 100, 500, 60).fill('#f8fafc').stroke('#e2e8f0');
+    doc.fillColor('#64748b').fontSize(8).font('Helvetica-Bold').text('RESUMO DA PREVISÃO TOTAL', 65, 112);
+    
+    doc.fillColor('#1e293b').fontSize(14).text(`SAQUE: R$ ${formatBRL(totalW)}`, 65, 130);
+    doc.fillColor('#059669').text(`DEPÓSITO: R$ ${formatBRL(totalD)}`, 280, 130);
+    
+    doc.moveDown(3);
 
-    // Table header
-    doc.fontSize(10).font('Helvetica-Bold');
-    const startX = 50;
-    doc.text('ATM', startX, doc.y, { width: 120, continued: false });
-    const headerY = doc.y - 12;
-    doc.text('Sacado (R$)', startX + 130, headerY, { width: 120, align: 'right' });
-    doc.text('Depositado (R$)', startX + 260, headerY, { width: 120, align: 'right' });
-    doc.text('Sacado Ajust.', startX + 380, headerY, { width: 100, align: 'right' });
-    doc.moveDown(0.3);
-    doc.moveTo(startX, doc.y).lineTo(550, doc.y).stroke();
-    doc.moveDown(0.3);
+    // Table
+    const tableTop = 180;
+    doc.fillColor('#475569').fontSize(9).font('Helvetica-Bold');
+    doc.text('ATM', 50, tableTop);
+    doc.text('PREVISÃO SAQUE', 200, tableTop, { width: 100, align: 'right' });
+    doc.text('PREVISÃO DEPÓSITO', 320, tableTop, { width: 100, align: 'right' });
+    doc.text('TOTAL ESTIMADO', 450, tableTop, { width: 100, align: 'right' });
+    
+    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).strokeColor('#cbd5e1').stroke();
+    
+    let currentY = tableTop + 25;
+    doc.font('Helvetica').fontSize(9).fillColor('#1e293b');
 
-    // Table rows
-    doc.font('Helvetica').fontSize(9);
-    atms.forEach(atm => {
-      const y = doc.y;
-      doc.text(atm.name, startX, y, { width: 120 });
-      doc.text(`R$ ${formatBRL(atm.withdrawal)}`, startX + 130, y, { width: 120, align: 'right' });
-      doc.text(`R$ ${formatBRL(atm.deposit)}`, startX + 260, y, { width: 120, align: 'right' });
-      doc.text(`R$ ${formatBRL(atm.withdrawal * f)}`, startX + 380, y, { width: 100, align: 'right' });
-      doc.moveDown(0.2);
+    atms.forEach((atm, index) => {
+      if (currentY > 750) {
+        doc.addPage();
+        currentY = 50;
+      }
+
+      if (index % 2 === 0) {
+        doc.rect(50, currentY - 5, 500, 20).fill('#f1f5f9');
+        doc.fillColor('#1e293b');
+      }
+
+      doc.text(atm.name, 50, currentY);
+      doc.text(`R$ ${formatBRL(atm.withdrawal)}`, 200, currentY, { width: 100, align: 'right' });
+      doc.text(`R$ ${formatBRL(atm.deposit)}`, 320, currentY, { width: 100, align: 'right' });
+      doc.font('Helvetica-Bold').text(`R$ ${formatBRL(atm.withdrawal + atm.deposit)}`, 450, currentY, { width: 100, align: 'right' }).font('Helvetica');
+      
+      currentY += 20;
     });
+
+    // Footer
+    const pages = doc.bufferedPageRange();
+    for (let i = 0; i < pages.count; i++) {
+      doc.switchToPage(i);
+      doc.fontSize(8).fillColor('#94a3b8').text(
+        `Gerado em ${new Date().toLocaleString('pt-BR')}  |  Página ${i + 1} de ${pages.count}`,
+        50,
+        780,
+        { align: 'center', width: 500 }
+      );
+    }
 
     doc.end();
   } catch (err) {
@@ -294,48 +415,48 @@ router.post('/export/pdf', async (req, res) => {
 // POST /api/analyses/export/excel
 // Exports consolidation to Excel
 router.post('/export/excel', async (req, res) => {
-  const { custodyId, date, factor } = req.body;
+  const { custodyId, date } = req.body;
   if (!custodyId || !date) {
     return res.status(400).json({ error: 'Parâmetros ausentes (custodyId, date)' });
   }
 
   try {
-    const custody = await db('tb_custodias').where({ id: custodyId }).first();
-    const atms = await getAtmTotalsForDate(custodyId, date);
-    const f = parseFloat(factor) || 1;
+    const data = await getDetailData(custodyId, date);
+    const atms = data.atms;
 
     const sheetData = atms.map(atm => ({
       'ATM': atm.name,
-      'Identificacao': atm.number,
-      'Sacado (R$)': atm.withdrawal,
-      'Depositado (R$)': atm.deposit,
-      'Fator': f,
-      'Sacado Ajustado (R$)': +(atm.withdrawal * f).toFixed(2),
-      'Depositado Ajustado (R$)': +(atm.deposit * f).toFixed(2)
+      'Identificação': atm.number,
+      'Total Real Sacado (R$)': atm.withdrawalRaw,
+      'Total Real Depositado (R$)': atm.depositRaw,
+      'Previsão de Saque (R$)': +atm.withdrawal.toFixed(2),
+      'Previsão de Depósito (R$)': +atm.deposit.toFixed(2),
+      'Total Estimado (R$)': +(atm.withdrawal + atm.deposit).toFixed(2)
     }));
 
     // Totals row
     const totalW = atms.reduce((a, b) => a + b.withdrawal, 0);
     const totalD = atms.reduce((a, b) => a + b.deposit, 0);
+    const totalRawW = atms.reduce((a, b) => a + b.withdrawalRaw, 0);
+    const totalRawD = atms.reduce((a, b) => a + b.depositRaw, 0);
+
     sheetData.push({
       'ATM': 'TOTAL',
-      'Identificacao': '',
-      'Sacado (R$)': totalW,
-      'Depositado (R$)': totalD,
-      'Fator': f,
-      'Sacado Ajustado (R$)': +(totalW * f).toFixed(2),
-      'Depositado Ajustado (R$)': +(totalD * f).toFixed(2)
+      'Identificação': '',
+      'Total Real Sacado (R$)': totalRawW,
+      'Total Real Depositado (R$)': totalRawD,
+      'Previsão de Saque (R$)': +totalW.toFixed(2),
+      'Previsão de Depósito (R$)': +totalD.toFixed(2),
+      'Total Estimado (R$)': +(totalW + totalD).toFixed(2)
     });
 
     const worksheet = xlsx.utils.json_to_sheet(sheetData);
-    
-    // Column widths
     worksheet['!cols'] = [
-      { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 8 }, { wch: 22 }, { wch: 24 }
+      { wch: 20 }, { wch: 15 }, { wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 22 }
     ];
 
     const workbook = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(workbook, worksheet, `${custody ? custody.nome : 'Dados'}`);
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Consolidação');
 
     const buf = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
