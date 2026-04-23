@@ -149,6 +149,8 @@ async function getDetailData(custodyId, referenceDate) {
       name: `ATM ${atm.numero}`,
       microPredictionW: infoW.microPrediction,
       microPredictionD: infoD.microPrediction,
+      withdrawalRaw: Object.values(dailyData).reduce((a, b) => a + (b.rawW || 0), 0),
+      depositRaw: Object.values(dailyData).reduce((a, b) => a + (b.rawD || 0), 0),
       dailyData
     };
   });
@@ -335,7 +337,7 @@ router.post('/export/pdf', async (req, res) => {
 
     const formatBRL = (val) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=consolidacao_${custodyId}_${date}.pdf`);
     doc.pipe(res);
