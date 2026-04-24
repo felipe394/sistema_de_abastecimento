@@ -1,7 +1,6 @@
 import { ArrowLeft, Landmark, TrendingUp, TrendingDown, DownloadCloud, Loader2, Calendar } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { API_URL } from '../../config';
 
 const getDayOfWeek = (dateString: string) => {
   if (!dateString) return '';
