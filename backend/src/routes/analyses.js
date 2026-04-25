@@ -33,13 +33,26 @@ async function getDetailData(custodyId, referenceDate) {
       .whereIn('data', uniqueDates);
   }
 
-  // 1. Calculate Daily Totals for the Custody (Macro level)
+  // 1. Pre-process transactions into lookup maps for O(1) access and correct summation
+  const transMap = {}; // Key: atmId_date_type -> sum
+  const macroTransMap = {}; // Key: date_type -> sum
+
+  transactions.forEach(t => {
+    const dateStr = t.data instanceof Date ? t.data.toISOString().split('T')[0] : t.data;
+    const atmKey = `${t.id_atm}_${dateStr}_${t.tipo}`;
+    const macroKey = `${dateStr}_${t.tipo}`;
+    
+    const val = parseFloat(t.valor) || 0;
+    transMap[atmKey] = (transMap[atmKey] || 0) + val;
+    macroTransMap[macroKey] = (macroTransMap[macroKey] || 0) + val;
+  });
+
+  // 2. Calculate Daily Totals for the Custody (Macro level)
   const dailyTotals = uniqueDates.map(date => {
-    const dayTrans = transactions.filter(t => t.data.toISOString().split('T')[0] === date);
     return {
       date,
-      withdrawal: dayTrans.filter(t => t.tipo === 'saque').reduce((a, b) => a + parseFloat(b.valor), 0),
-      deposit: dayTrans.filter(t => t.tipo === 'deposito').reduce((a, b) => a + parseFloat(b.valor), 0)
+      withdrawal: macroTransMap[`${date}_saque`] || 0,
+      deposit: macroTransMap[`${date}_deposito`] || 0
     };
   });
   const getFinalPrediction = (type, isMicro) => {
@@ -94,8 +107,7 @@ async function getDetailData(custodyId, referenceDate) {
       .map(row => {
         const rowDates = dateRows[row.id] || [];
         const dailyValues = rowDates.map(rd => {
-          const transValue = transactions.find(t => t.id_atm === atmId && t.data.toISOString().split('T')[0] === rd.date && t.tipo === (type === 'W' ? 'saque' : 'deposito'));
-          const raw = transValue ? parseFloat(transValue.valor) : 0;
+          const raw = transMap[`${atmId}_${rd.date}_${type === 'W' ? 'saque' : 'deposito'}`] || 0;
           const factor = parseFloat(String(type === 'W' ? rd.factorW : rd.factorD).replace(',', '.')) || 1;
           const adjusted = raw * factor;
 

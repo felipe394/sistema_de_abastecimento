@@ -158,6 +158,27 @@ export const Analysis = () => {
   const predictionW = calculatePrediction('W');
   const predictionD = calculatePrediction('D');
 
+  const calculateRowSummary = (type: 'W' | 'D') => {
+    const row = rows[selectedRowIndex];
+    if (!row) return 0;
+    const dates = dateRowsByRowId[row.id] || [];
+    if (dates.length === 0) return 0;
+
+    const values = dates.map(d => {
+      const amount = type === 'W' ? parseCurrency(d.amountW) : parseCurrency(d.amountD);
+      const factor = type === 'W' ? parseCurrency(d.factorW) : parseCurrency(d.factorD);
+      return amount * factor;
+    });
+
+    switch (row.action) {
+      case 'Maior': return Math.max(...values);
+      case 'Menor': return Math.min(...values);
+      case 'Média': return values.reduce((a, b) => a + b, 0) / values.length;
+      case 'Soma': return values.reduce((a, b) => a + b, 0);
+      default: return 0;
+    }
+  };
+
   const fetchDailyTotals = async (dateRowId: number, date: string, targetRowId: number) => {
     if (!selectedCustodyId || !date) return;
     setLoadingTotals(true);
@@ -563,9 +584,9 @@ export const Analysis = () => {
           {/* Table Footer with Summary */}
           <div className="bg-slate-50 border-t border-slate-100 p-4 flex justify-between items-center text-sm">
              <div className="flex space-x-6">
-                <p className="text-slate-500 font-bold uppercase text-[10px]">Análise de Algoritmos Linha {selectedRowIndex + 1}:</p>
-                <p className="font-bold text-primary-700">S: {formatCurrency(activeDateRows.reduce((a, b) => a + (parseCurrency(b.amountW) * parseCurrency(b.factorW)), 0))}</p>
-                <p className="font-bold text-emerald-700">D: {formatCurrency(activeDateRows.reduce((a, b) => a + (parseCurrency(b.amountD) * parseCurrency(b.factorD)), 0))}</p>
+                 <p className="text-slate-500 font-bold uppercase text-[10px]">Resultado Algoritmo Linha {selectedRowIndex + 1}:</p>
+                 <p className="font-bold text-primary-700">S: {formatCurrency(calculateRowSummary('W'))}</p>
+                 <p className="font-bold text-emerald-700">D: {formatCurrency(calculateRowSummary('D'))}</p>
              </div>
              {loadingTotals && <span className="text-[10px] font-black text-primary-600 animate-pulse uppercase">Atualizando dados...</span>}
           </div>

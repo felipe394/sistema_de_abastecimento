@@ -13,6 +13,12 @@ const formatCurrency = (val: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 };
 
+const formatPercent = (val: number) => {
+  if (val === undefined || val === null) return '0.0%';
+  const diff = (val - 1) * 100;
+  return (diff > 0 ? '+' : '') + diff.toFixed(1) + '%';
+};
+
 export const AnalysisDetail = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -199,23 +205,23 @@ export const AnalysisDetail = () => {
       </div>
 
       {/* View Selector & Summary Index */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4 bg-white border border-primary-100 shadow-sm p-6 rounded-xl relative overflow-hidden">
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+        <div className="w-full xl:w-72 bg-white border border-primary-100 shadow-sm p-5 rounded-xl relative overflow-hidden shrink-0">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-primary-500"></div>
           <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
             <Calendar className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-            Visualização dos Dados
+            Visualização
           </label>
           <select
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-primary-500 outline-none transition-all cursor-pointer"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-bold focus:ring-2 focus:ring-primary-500 outline-none transition-all cursor-pointer"
           >
-            <option value="FINAL" className="font-black text-primary-700">🏆 CONSOLIDAÇÃO FINAL (COM AJUSTE)</option>
-            <optgroup label="Dados Históricos por Dia">
+            <option value="FINAL" className="font-black text-primary-700">🏆 CONSOLIDAÇÃO FINAL</option>
+            <optgroup label="Dados Históricos">
               {availableDates.map(d => (
                 <option key={d} value={d}>
-                  {new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')} — {getDayOfWeek(d)}
+                  {new Date(d + 'T12:00:00').toLocaleDateString('pt-BR')}
                 </option>
               ))}
             </optgroup>
@@ -223,55 +229,35 @@ export const AnalysisDetail = () => {
         </div>
 
         {summary && selectedDate === 'FINAL' && (
-          <div className="lg:col-span-8 bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-inner">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Cenário Macro (Teto)</p>
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-blue-300">S: {formatCurrency(summary.macroW)}</span>
-                  <span className="text-sm font-bold text-emerald-400">D: {formatCurrency(summary.macroD)}</span>
+          <div className="flex-1 bg-slate-900 p-5 rounded-xl border border-slate-800 shadow-inner max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+              <div className="flex items-center space-x-4">
+                <div className="p-2.5 bg-slate-800 rounded-lg">
+                   <TrendingUp className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Cenário Macro (Teto)</p>
+                  <div className="flex space-x-4">
+                    <span className="text-sm font-bold text-blue-300">S: {formatCurrency(summary.macroW)}</span>
+                    <span className="text-sm font-bold text-emerald-400">D: {formatCurrency(summary.macroD)}</span>
+                  </div>
                 </div>
               </div>
-              <div className="border-l border-slate-700 pl-6">
-                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Cenário Micro (Soma)</p>
-                <div className="flex flex-col">
-                  <span className="text-sm font-bold text-slate-300">S: {formatCurrency(summary.microW)}</span>
-                  <span className="text-sm font-bold text-slate-300">D: {formatCurrency(summary.microD)}</span>
+              <div className="flex items-center space-x-4 border-t sm:border-t-0 sm:border-l border-slate-800 pt-4 sm:pt-0 sm:pl-8">
+                <div className="p-2.5 bg-slate-800 rounded-lg">
+                   <Landmark className="w-5 h-5 text-primary-400" />
                 </div>
-              </div>
-              <div className="border-l border-slate-700 pl-6">
-                <p className="text-[10px] text-primary-400 font-black uppercase tracking-widest mb-1">Índice de Ajuste</p>
-                <div className="flex flex-col">
-                  <span className="text-lg font-black text-white">S: {((summary.indexW - 1) * 100).toFixed(1)}%</span>
-                  <span className="text-lg font-black text-white">D: {((summary.indexD - 1) * 100).toFixed(1)}%</span>
+                <div>
+                  <p className="text-[10px] text-primary-400 font-black uppercase tracking-widest mb-1">Índice de Ajuste</p>
+                  <div className="flex space-x-4">
+                    <span className="text-base font-black text-white">S: {formatPercent(summary.indexW)}</span>
+                    <span className="text-base font-black text-white">D: {formatPercent(summary.indexD)}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white border border-primary-100 shadow-sm rounded-2xl p-6 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <TrendingUp className="w-16 h-16 text-primary-600" />
-          </div>
-          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">
-            {selectedDate === 'FINAL' ? 'Previsão Saque Total (Geral)' : 'Previsão Saque (Dia Selecionado)'}
-          </p>
-          <h2 className="text-3xl font-black text-primary-900">{formatCurrency(totalW)}</h2>
-        </div>
-
-        <div className="bg-white border border-emerald-100 shadow-sm rounded-2xl p-6 relative overflow-hidden group">
-          <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-            <TrendingDown className="w-16 h-16 text-emerald-600" />
-          </div>
-          <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">
-            {selectedDate === 'FINAL' ? 'Previsão Depósito Total (Geral)' : 'Previsão Depósito (Dia Selecionado)'}
-          </p>
-          <h2 className="text-3xl font-black text-emerald-800">{formatCurrency(totalD)}</h2>
-        </div>
       </div>
 
       {/* ATM Table */}
